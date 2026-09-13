@@ -19,10 +19,10 @@ import com.github.tvbox.osc.bean.MovieSort;
 import com.github.tvbox.osc.bean.SourceBean;
 import com.github.tvbox.osc.event.RefreshEvent;
 import com.github.tvbox.osc.util.DefaultConfig;
+import com.github.tvbox.osc.util.GsonUtil;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.LOG;
 import com.github.tvbox.osc.util.thunder.Thunder;
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -750,7 +750,7 @@ public class SourceViewModel extends ViewModel {
     private AbsSortXml sortJson(MutableLiveData<AbsSortXml> result, String json) {
         try {
             JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
-            AbsSortJson sortJson = new Gson().fromJson(obj, new TypeToken<AbsSortJson>() {
+            AbsSortJson sortJson = GsonUtil.get().fromJson(obj, new TypeToken<AbsSortJson>() {
             }.getType());
             AbsSortXml data = sortJson.toAbsSortXml();
             try {
@@ -966,7 +966,7 @@ public class SourceViewModel extends ViewModel {
                     "\t\t\"vod_play_url\": \"0$magnet:?xt=urn:btih:9e9358b946c427962533472efdd2efd9e9e38c67&dn=%e9%98%b3%e5%85%89%e7%94%b5%e5%bd%b1www.ygdy8.com.%e7%83%ad%e8%a1%80.2022.BD.1080P.%e9%9f%a9%e8%af%ad%e4%b8%ad%e8%8b%b1%e5%8f%8c%e5%ad%97.mkv&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2fexodus.desync.com%3a6969%2fannounce\"\n" +
                     "\t}]\n" +
                     "}";*/
-            AbsJson absJson = new Gson().fromJson(json, new TypeToken<AbsJson>() {
+            AbsJson absJson = GsonUtil.get().fromJson(json, new TypeToken<AbsJson>() {
             }.getType());
             AbsXml data = absJson.toAbsXml();
             absXml(data, sourceKey);

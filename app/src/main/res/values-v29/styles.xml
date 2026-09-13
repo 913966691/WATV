@@ -11,6 +11,11 @@
         <item name="android:statusBarColor">@color/bili_bg_card</item>
         <item name="android:navigationBarColor">@color/bili_bg_card</item>
         <!-- 状态栏图标明暗由 BaseActivity 的 ImmersionBar.statusBarDarkFont 按主题动态设置 -->
+        <!-- 注意:必须保持 true!
+             部分页面(订阅管理/设置/直播频道列表等)的布局是按浅色主题写的,一直依赖系统
+             Force Dark 自动反色成深色样式;一旦关掉,这些页面的文字会变回黑色,暗黑背景下无法辨认。
+             首页手势条闪黑已由 MainActivity 的 NavBarGuard + bottomNavRoot 自绘背景兜底,
+             不依赖本属性,所以这里还原为 true。 -->
         <item name="android:forceDarkAllowed">true</item>
     </style>
 </resources>

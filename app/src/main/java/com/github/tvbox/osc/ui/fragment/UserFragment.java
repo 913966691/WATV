@@ -29,10 +29,10 @@ import com.github.tvbox.osc.ui.activity.LiveActivity;
 import com.github.tvbox.osc.ui.activity.SettingActivity;
 import com.github.tvbox.osc.ui.adapter.GridAdapter;
 import com.github.tvbox.osc.util.FastClickCheckUtil;
+import com.github.tvbox.osc.util.GsonUtil;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.UA;
 import com.github.tvbox.osc.util.Utils;
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -202,7 +202,7 @@ public class UserFragment extends BaseLazyFragment {
     private ArrayList<Movie.Video> loadHots(String json) {
         ArrayList<Movie.Video> result = new ArrayList<>();
         try {
-            JsonObject infoJson = new Gson().fromJson(json, JsonObject.class);
+            JsonObject infoJson = GsonUtil.get().fromJson(json, JsonObject.class);
             JsonArray array = infoJson.getAsJsonArray("data");
             for (JsonElement ele : array) {
                 JsonObject obj = (JsonObject) ele;

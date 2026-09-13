@@ -2,7 +2,6 @@ package com.github.tvbox.osc.util;
 
 import android.content.res.AssetManager;
 import com.github.tvbox.osc.base.App;
-import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.lzy.okgo.OkGo;
@@ -39,7 +38,7 @@ public class EpgNameFuzzyMatch {
             br.close();
             inputStreamReader.close();
             if(!builder.toString().isEmpty()){
-                JsonObject  jsonObj =  new Gson().fromJson(builder.toString(), (Type)JsonObject.class);// 从builder中读取了json中的数据。
+                JsonObject  jsonObj =  GsonUtil.get().fromJson(builder.toString(), (Type)JsonObject.class);// 从builder中读取了json中的数据。
                 //  JSONObject testJson = new JSONObject(builder.toString()); // 从builder中读取了json中的数据。
                 epgNameDoc = jsonObj;
                 hasAddData(epgNameDoc);
@@ -59,7 +58,7 @@ public class EpgNameFuzzyMatch {
                 JSONObject returnedData = new JSONObject();
                 try {
                     String pageStr = response.body();
-                    JsonObject infoJson = new Gson().fromJson(pageStr, (Type)JsonObject.class);
+                    JsonObject infoJson = GsonUtil.get().fromJson(pageStr, (Type)JsonObject.class);
                     epgNameDoc = infoJson;
                     hasAddData(epgNameDoc);
                     return;

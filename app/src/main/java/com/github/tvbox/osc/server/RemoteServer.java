@@ -12,8 +12,8 @@ import com.github.tvbox.osc.api.ApiConfig;
 import com.github.tvbox.osc.base.App;
 import com.github.tvbox.osc.event.ServerEvent;
 import com.github.tvbox.osc.util.FileUtils;
+import com.github.tvbox.osc.util.GsonUtil;
 import com.github.tvbox.osc.util.OkGoHelper;
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
@@ -58,6 +58,16 @@ public class RemoteServer extends NanoHTTPD {
     private DataReceiver mDataReceiver;
     private ArrayList < RequestProcess > getRequestList = new ArrayList < > ();
     private ArrayList < RequestProcess > postRequestList = new ArrayList < > ();
+
+    /**
+     * ★ 性能优化:复用 OkHttpClient 实例,避免每次 /proxy?do=raw 请求都创建新实例。
+     * OkHttpClient 应该全局共享,它的连接池和线程池都是复用的。
+     */
+    private static final okhttp3.OkHttpClient RAW_HTTP_CLIENT = new okhttp3.OkHttpClient.Builder()
+            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .followRedirects(true)
+            .build();
 
     public static String m3u8Content;
 
@@ -117,7 +127,7 @@ public class RemoteServer extends NanoHTTPD {
                             + " uri: " + session.getUri());
                     Map < String, String > params = session.getParms();
                     params.putAll(session.getHeaders());
-                    params.put("request-headers", new Gson().toJson(session.getHeaders()));
+                    params.put("request-headers", GsonUtil.get().toJson(session.getHeaders()));
                     if (params.containsKey("do")) {
                         // ★ do=raw:纯 HTTP 代理(直连 + 透传),用于 m3u8 rewrite 后的 .ts 分片
                         // 不依赖 jar 里的 spider,直接 OkHttp GET 参数 url,然后原样返回
@@ -134,11 +144,7 @@ public class RemoteServer extends NanoHTTPD {
                                 // Chaoxing/ananas CDN 用 origin.jpg 这种路径做了防盗链,
                                 // 必须带 Referer: https://mooc1-1.chaoxing.com/ 才能访问。
                                 // 此外 Chaoxing 资源还会验 User-Agent 和 Accept。
-                                okhttp3.OkHttpClient raw = new okhttp3.OkHttpClient.Builder()
-                                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                                        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                                        .followRedirects(true)
-                                        .build();
+                                // ★ 复用全局 OkHttpClient 实例,避免每次请求都创建新实例
                                 okhttp3.Request.Builder rb = new okhttp3.Request.Builder().url(targetUrl);
                                 // 透传客户端发来的 header
                                 String hUserAgent = params.get("user-agent");
@@ -169,7 +175,7 @@ public class RemoteServer extends NanoHTTPD {
                                 String hAccept = params.get("accept");
                                 if (hAccept == null) hAccept = params.get("Accept");
                                 if (hAccept != null) rb.header("Accept", hAccept);
-                                okhttp3.Response rs = raw.newCall(rb.build()).execute();
+                                okhttp3.Response rs = RAW_HTTP_CLIENT.newCall(rb.build()).execute();
                                 int code = rs.code();
                                 String mime = "application/octet-stream";
                                 String ct = rs.header("Content-Type");
@@ -186,7 +192,7 @@ public class RemoteServer extends NanoHTTPD {
                                                 + bodyStr.substring(0, Math.min(200, bodyStr.length())));
                                     } catch (Exception ignore) {}
                                     // ★ 重要:重新构造请求拿 body,因为上面 byteStream 已被消耗
-                                    okhttp3.Response rs2 = raw.newCall(rb.build()).execute();
+                                    okhttp3.Response rs2 = RAW_HTTP_CLIENT.newCall(rb.build()).execute();
                                     body = rs2.body() != null ? rs2.body().byteStream() : null;
                                 }
                                 Response response = NanoHTTPD.newChunkedResponse(

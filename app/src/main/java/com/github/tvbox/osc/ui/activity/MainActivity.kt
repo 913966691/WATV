@@ -48,9 +48,36 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>() {
 
     private var currentTab: BottomTab = BottomTab.HOME
 
+    /**
+     * 导航栏颜色守卫:
+     * 首页冷启动加载(配置/jar/豆瓣数据)期间,底部手势条区域会瞬间由深灰变黑再变回深灰。
+     * 手势条区域是 bottomNavRoot 的透明 padding,直接透出 window.navigationBarColor,
+     * 说明加载过程中窗口级导航栏颜色被某个运行时组件临时改成了黑色/透明。
+     * 全局布局回调里监测颜色,一旦被篡改立即恢复为 bili_bg_card,同时输出 logcat 便于定位真凶。
+     */
+    private fun installNavBarGuard() {
+        val expected = androidx.core.content.ContextCompat.getColor(this, R.color.bili_bg_card)
+        window.decorView.viewTreeObserver.addOnGlobalLayoutListener {
+            try {
+                val cur = window.navigationBarColor
+                if (cur != expected) {
+                    android.util.Log.e(
+                        "NavBarGuard",
+                        "检测到导航栏颜色被运行时篡改: ${String.format("#%08X", cur)} → 恢复为 #1C1F23"
+                    )
+                    window.navigationBarColor = expected
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     override fun init() {
 
         useCacheConfig = intent.extras?.getBoolean(IntentKey.CACHE_CONFIG_CHANGED, false) ?: false
+
+        // 导航栏颜色守卫,防止首页加载期间手势条区域闪黑
+        installNavBarGuard()
 
         mBinding.vp.adapter = object : FragmentStateAdapter(this) {
             override fun getItemCount() = fragments.size

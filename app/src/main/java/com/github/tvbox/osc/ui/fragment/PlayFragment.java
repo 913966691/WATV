@@ -192,10 +192,8 @@ public class PlayFragment extends BaseLazyFragment {
             try {
                 rec = Long.parseLong((String) theCache);
             } catch (NumberFormatException e) {
-                System.out.println("String value is not a valid long.");
+                // Cache value is not a valid long, use default
             }
-        } else {
-            System.out.println("Value cannot be converted to long.");
         }
         return Math.max(rec, skip);
     }
@@ -471,7 +469,7 @@ public class PlayFragment extends BaseLazyFragment {
 
             ImmersionBar.with(mActivity)
                     .hideBar(BarHide.FLAG_SHOW_BAR)
-                    .navigationBarColor(R.color.white)
+                    .navigationBarColor(R.color.bili_bg_card)
                     .fitsSystemWindows(true)
                     .init();
         }
@@ -1156,12 +1154,9 @@ public class PlayFragment extends BaseLazyFragment {
                     }
                 } catch (Throwable th) {
                     LogUtils.e(th.toString());
-//                        errorWithRetry("获取播放信息错误", true);
-//                        Toast.makeText(mContext, "获取播放信息错误1", Toast.LENGTH_SHORT).show();
                 }
             } else {
                 errorWithRetry("获取播放信息错误", true);
-//                    Toast.makeText(mContext, "获取播放信息错误", Toast.LENGTH_SHORT).show();
             }
         }
     };

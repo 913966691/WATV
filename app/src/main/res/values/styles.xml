@@ -9,8 +9,8 @@
         <!--默认window窗口(activity)背景颜色,根据主题修改该属性可 避免某些情况activity跳转/回跳会白屏(出现与主题相反的颜色)-->
         <item name="android:windowBackground">@color/windowBackground</item>
         <!-- B站风格:状态栏/导航栏与页面同色 -->
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@color/bili_bg_card</item>
+        <item name="android:navigationBarColor">@color/bili_bg_card</item>
         <item name="android:windowTranslucentStatus">false</item>
         <item name="android:windowTranslucentNavigation">false</item>
         <item name="android:fitsSystemWindows">false</item>
@@ -93,11 +93,10 @@
     <style name="SplashTheme" parent="AppTheme">
         <item name="android:windowBackground">@drawable/bg_splash</item>
         <item name="android:windowFullscreen">true</item>
-        <item name="android:windowDrawsSystemBarBackgrounds">false</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="android:fitsSystemWindows">false</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@color/bili_bg_card</item>
+        <item name="android:navigationBarColor">@color/bili_bg_card</item>
     </style>
 
     <!--
@@ -106,15 +105,19 @@
         所以必须把这个主题挂到 MainActivity 上才能影响启动画面。
         MainActivity.onCreate 里会 setTheme(AppTheme) 切回正常主题,因此仅启动瞬间生效。
         API 31+ 的覆盖见 values-v31/styles.xml(使用 framework 的 windowSplashScreen* 属性)。
+        
+        ★ 关键修复:之前 navigationBarColor=transparent + windowDrawsSystemBarBackgrounds=false
+        导致从 Launcher 主题切换到 AppTheme 时,系统需要重新创建系统栏窗口,产生闪烁
+        (深灰→黑→深灰)。现在改成和 AppTheme 一致的 bili_bg_card,切换时不会闪烁。
     -->
     <style name="AppTheme.Launcher" parent="AppTheme">
         <item name="android:windowBackground">@drawable/bg_splash</item>
         <item name="android:windowFullscreen">true</item>
-        <item name="android:windowDrawsSystemBarBackgrounds">false</item>
+        <!-- 删掉 windowDrawsSystemBarBackgrounds=false,用默认值 true -->
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="android:fitsSystemWindows">false</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@color/bili_bg_card</item>
+        <item name="android:navigationBarColor">@color/bili_bg_card</item>
     </style>
 
     <style name="AppTheme.NoActionBar">

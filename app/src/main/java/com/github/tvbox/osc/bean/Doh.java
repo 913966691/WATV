@@ -6,7 +6,7 @@ import android.text.TextUtils;
 import androidx.annotation.NonNull;
 
 import com.github.tvbox.osc.R;
-import com.google.gson.Gson;
+import com.github.tvbox.osc.util.GsonUtil;
 import com.google.gson.JsonElement;
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.reflect.TypeToken;
@@ -35,13 +35,13 @@ public class Doh {
     }
 
     public static Doh objectFrom(String str) {
-        Doh item = new Gson().fromJson(str, Doh.class);
+        Doh item = GsonUtil.get().fromJson(str, Doh.class);
         return item == null ? new Doh() : item;
     }
 
     public static List<Doh> arrayFrom(JsonElement element) {
         Type listType = new TypeToken<List<Doh>>() {}.getType();
-        List<Doh> items = new Gson().fromJson(element, listType);
+        List<Doh> items = GsonUtil.get().fromJson(element, listType);
         return items == null ? new ArrayList<>() : items;
     }
 
@@ -88,6 +88,6 @@ public class Doh {
     @NonNull
     @Override
     public String toString() {
-        return new Gson().toJson(this);
+        return GsonUtil.get().toJson(this);
     }
 }

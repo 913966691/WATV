@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.text.TextUtils;
 import android.view.KeyEvent;
@@ -234,7 +235,7 @@ public class VodController extends BaseController {
 
         initSubtitleInfo();
 
-        myHandle = new Handler();
+        myHandle = new Handler(Looper.getMainLooper());
 
         mLockView.setOnClickListener(v -> {
             isLock = !isLock;
@@ -701,7 +702,6 @@ public class VodController extends BaseController {
     }
 
     public void showParse(boolean userJxList) {
-        //mParseRoot.setVisibility(userJxList ? VISIBLE : GONE);
         if (listener!=null && mParseAdapter!=null){
             listener.showParseRoot(userJxList,mParseAdapter);
         }

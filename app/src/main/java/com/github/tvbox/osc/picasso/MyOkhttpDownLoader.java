@@ -20,7 +20,7 @@ import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
-import com.google.gson.Gson;
+import com.github.tvbox.osc.util.GsonUtil;
 import com.google.gson.JsonObject;
 import com.squareup.picasso.Downloader;
 
@@ -80,7 +80,7 @@ public final class MyOkhttpDownLoader implements Downloader {
         url = url.split("@")[0];
         Request.Builder mRequestBuilder = request.newBuilder().url(url);
         if(!TextUtils.isEmpty(header)) {
-            JsonObject jsonInfo = new Gson().fromJson(header, JsonObject.class);
+            JsonObject jsonInfo = GsonUtil.get().fromJson(header, JsonObject.class);
             for (String key : jsonInfo.keySet()) {
                 String val = jsonInfo.get(key).getAsString();
                 mRequestBuilder.addHeader(key.toUpperCase(), removeDuplicateSlashes(val));

@@ -1,6 +1,7 @@
 package com.github.tvbox.osc.util;
 
 import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 
 /**
@@ -26,7 +27,7 @@ public class FastClickCheckUtil {
      */
     public static void check(final View view, int mills) {
         view.setClickable(false);
-        new Handler().postDelayed(new Runnable() {
+        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
                 view.setClickable(true);

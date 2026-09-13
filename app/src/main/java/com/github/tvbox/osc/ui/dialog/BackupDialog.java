@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.Toast;
 
@@ -113,7 +114,7 @@ public class BackupDialog extends BaseDialog {
                             }
                         }
                         Toast.makeText(getContext(), "恢复成功,即将重启应用!", Toast.LENGTH_SHORT).show();
-                        new Handler().postDelayed(() -> AppUtils.relaunchApp(true),2000);
+                        new Handler(Looper.getMainLooper()).postDelayed(() -> AppUtils.relaunchApp(true),2000);
                     } else {
                         Toast.makeText(getContext(), "Hawk恢复失败!", Toast.LENGTH_SHORT).show();
                     }

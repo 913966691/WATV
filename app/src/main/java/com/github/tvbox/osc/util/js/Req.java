@@ -2,7 +2,7 @@ package com.github.tvbox.osc.util.js;
 
 import android.text.TextUtils;
 
-import com.google.gson.Gson;
+import com.github.tvbox.osc.util.GsonUtil;
 import com.google.gson.JsonElement;
 import com.google.gson.annotations.SerializedName;
 
@@ -31,7 +31,7 @@ public class Req {
     private JsonElement headers;
 
     public static Req objectFrom(String json) {
-        return new Gson().fromJson(json, Req.class);
+        return GsonUtil.get().fromJson(json, Req.class);
     }
 
     public int getBuffer() {

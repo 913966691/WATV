@@ -13,7 +13,7 @@
     -->
     <style name="AppTheme.Launcher" parent="AppTheme">
         <item name="android:windowBackground">@drawable/bg_splash</item>
-        <item name="android:windowSplashScreenBackground">@color/white</item>
+        <item name="android:windowSplashScreenBackground">@color/bili_bg_card</item>
         <!--
             关键:之前误用 @drawable/iv_splash 是个 webp(9KB 原项目自带的美女启动图),
             导致 splash 居中显示的是女模特,不是项目期望的青蛙。
@@ -21,11 +21,11 @@
         -->
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/app_icon_circle</item>
         <item name="android:windowFullscreen">true</item>
-        <item name="android:windowDrawsSystemBarBackgrounds">false</item>
+        <!-- 删掉 windowDrawsSystemBarBackgrounds=false,用默认值 true -->
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="android:fitsSystemWindows">false</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@color/bili_bg_card</item>
+        <item name="android:navigationBarColor">@color/bili_bg_card</item>
     </style>
 
 </resources>

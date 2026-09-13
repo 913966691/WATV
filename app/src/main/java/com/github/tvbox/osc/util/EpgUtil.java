@@ -3,7 +3,6 @@ package com.github.tvbox.osc.util;
 import android.content.res.AssetManager;
 
 import com.github.tvbox.osc.base.App;
-import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.io.BufferedReader;
@@ -32,7 +31,7 @@ public class EpgUtil {
             br.close();
             inputStreamReader.close();
             if(!builder.toString().isEmpty()){
-                epgDoc =  new Gson().fromJson(builder.toString(), (Type)JsonObject.class);// 从builder中读取了json中的数据。
+                epgDoc =  GsonUtil.get().fromJson(builder.toString(), (Type)JsonObject.class);// 从builder中读取了json中的数据。
                 for (JsonElement opt : epgDoc.get("epgs").getAsJsonArray()) {
                     JsonObject obj = (JsonObject) opt;
                     String name = obj.get("name").getAsString().trim();

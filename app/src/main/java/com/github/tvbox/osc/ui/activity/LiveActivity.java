@@ -112,7 +112,7 @@ public class LiveActivity extends BaseActivity {
     private List<LiveSettingGroup> liveSettingGroupList = new ArrayList<>();
 
     public static  int currentChannelGroupIndex = 0;
-    private Handler mHandler = new Handler();
+    private Handler mHandler = new Handler(Looper.getMainLooper());
 
     private List<LiveChannelGroup> liveChannelGroupList = new ArrayList<>();
     private int currentLiveChannelIndex = -1;
@@ -155,12 +155,19 @@ public class LiveActivity extends BaseActivity {
 
     @Override
     protected void init() {
+        // ★ Bug 修复:之前用 ImmersionBar.hideBar(FLAG_HIDE_NAVIGATION_BAR) 把系统导航栏
+        // (手势条/Home indicator) 整个隐藏了,导致直播页底部没有手势条,且内容区域被拉伸
+        // 到屏幕最底部,和主页/订阅/我的三个页面的表现不一致。
+        // 现在去掉 hideBar,让系统导航栏正常显示;底部导航栏的手势条 padding 由
+        // initBottomNavigation() 里的 WindowInsetsListener 负责。
+        // ★ 统一底部导航栏颜色:之前用 R.color.black(纯黑),和订阅/搜索/详情页的
+        // bili_bg_card(深灰 #1C1F23)不一致,导致不同界面底部手势条区域颜色不统一。
+        // 现在改为 bili_bg_card,和所有其他界面保持一致。
         ImmersionBar.with(this)
-                .statusBarColor(R.color.black)
+                .statusBarColor(R.color.bili_bg_card)
                 .statusBarDarkFont(false)
-                .navigationBarColor(R.color.black)
+                .navigationBarColor(R.color.bili_bg_card)
                 .fitsSystemWindows(true)
-                .hideBar(BarHide.FLAG_HIDE_NAVIGATION_BAR)
                 .init();
         context = this;
         epgStringAddress = Hawk.get(HawkConfig.EPG_URL,"");
@@ -883,6 +890,8 @@ public class LiveActivity extends BaseActivity {
     }
 
     private void parseProxyLiveContent(String content) {
+        // 异步回调可能在 Activity 销毁后才到达(用户快速退出直播页),此时 mVideoView 已置空,继续走会 NPE
+        if (isFinishing() || isDestroyed()) return;
         LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> linkedHashMap = new LinkedHashMap<>();
         TxtSubscribe.parse(linkedHashMap, content);
         ApiConfig.get().loadLives(TxtSubscribe.live2JsonArray(linkedHashMap));
@@ -898,6 +907,8 @@ public class LiveActivity extends BaseActivity {
     }
 
     private void showNoLiveChannels() {
+        // Activity 已销毁时不再弹窗(弹在已销毁的 Activity 上同样会崩溃)
+        if (isFinishing() || isDestroyed()) return;
         if (noLiveChannelsShown) {
             return;
         }

@@ -76,7 +76,7 @@ public class JarLoader {
                         if (classInit != null) {
                             Method method = classInit.getMethod("init", Context.class);
                             method.invoke(null, App.getInstance());
-                            System.out.println("自定义爬虫代码加载成功!");
+                            android.util.Log.d("JarLoader", "自定义爬虫代码加载成功!");
                             success = true;
                             try {
                                 Class proxy = classLoader.loadClass("com.github.catvod.spider.Proxy");

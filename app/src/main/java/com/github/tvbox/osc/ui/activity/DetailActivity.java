@@ -65,6 +65,7 @@ import com.github.tvbox.osc.ui.dialog.VideoDetailDialog;
 import com.github.tvbox.osc.ui.fragment.PlayFragment;
 import com.github.tvbox.osc.ui.widget.LinearSpacingItemDecoration;
 import com.github.tvbox.osc.util.FastClickCheckUtil;
+import com.github.tvbox.osc.util.GsonUtil;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.ReceiverCompat;
 import com.github.tvbox.osc.util.ScreenShotListenManager;
@@ -72,7 +73,6 @@ import com.github.tvbox.osc.util.SearchHelper;
 import com.github.tvbox.osc.util.SubtitleHelper;
 import com.github.tvbox.osc.util.Utils;
 import com.github.tvbox.osc.viewmodel.SourceViewModel;
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.gyf.immersionbar.ImmersionBar;
@@ -160,8 +160,8 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         // Android 14 (API 34) 兼容:registerReceiver 必须显式 exported
         ReceiverCompat.registerSafe(this, mBatteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         ImmersionBar.with(this)
-                .statusBarColor(R.color.black)
-                .navigationBarColor(R.color.white)
+                .statusBarColor(R.color.bili_bg_card)
+                .navigationBarColor(R.color.bili_bg_card)
                 .fitsSystemWindows(true)
                 .statusBarDarkFont(false)
                 .init();
@@ -664,7 +664,7 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
                     public void onSuccess(Response<String> response) {
                         String json = response.body();
                         try {
-                            for (JsonElement je : new Gson().fromJson(json, JsonArray.class)) {
+                            for (JsonElement je : GsonUtil.get().fromJson(json, JsonArray.class)) {
                                 quickSearchWord.add(je.getAsJsonObject().get("t").getAsString());
                             }
                         } catch (Throwable th) {

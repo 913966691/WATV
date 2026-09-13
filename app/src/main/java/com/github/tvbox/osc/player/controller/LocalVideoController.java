@@ -6,6 +6,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -206,7 +207,7 @@ public class LocalVideoController extends BaseController {
         mPreBtn.setVisibility(VISIBLE);
         mNextBtn.setVisibility(VISIBLE);
 
-        myHandle = new Handler();
+        myHandle = new Handler(Looper.getMainLooper());
         myRunnable = new Runnable() {
             @Override
             public void run() {
@@ -329,42 +330,6 @@ public class LocalVideoController extends BaseController {
                 }
             }
         });
-//        mPlayerSpeedBtn.setOnClickListener(new OnClickListener() {
-//            @Override
-//            public void onClick(View view) {
-//                myHandle.removeCallbacks(myRunnable);
-//                myHandle.postDelayed(myRunnable, myHandleSeconds);
-//                try {
-//                    float speed = (float) mPlayerConfig.getDouble("sp");
-//                    speed += 0.25f;
-//                    if (speed > 3)
-//                        speed = 0.5f;
-//                    mPlayerConfig.put("sp", speed);
-//                    updatePlayerCfgView();
-//                    listener.updatePlayerCfg();
-//                    speed_old = speed;
-//                    mControlWrapper.setSpeed(speed);
-//                } catch (JSONException e) {
-//                    e.printStackTrace();
-//                }
-//            }
-//        });
-
-//        mPlayerSpeedBtn.setOnLongClickListener(new OnLongClickListener() {
-//            @Override
-//            public boolean onLongClick(View view) {
-//                try {
-//                    mPlayerConfig.put("sp", 1.0f);
-//                    updatePlayerCfgView();
-//                    listener.updatePlayerCfg();
-//                    speed_old = 1.0f;
-//                    mControlWrapper.setSpeed(1.0f);
-//                } catch (JSONException e) {
-//                    e.printStackTrace();
-//                }
-//                return true;
-//            }
-//        });
         mPlayerBtn.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {

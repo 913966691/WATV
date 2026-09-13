@@ -18,7 +18,15 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="@color/bili_bg_card">
+
+    <!--
+        根布局直接铺 bili_bg_card 背景:
+        insets 监听会给根布局底部加手势条高度的 padding,这层背景让手势条区域
+        也由 app 自己绘制成深灰,不再依赖 window.navigationBarColor,
+        规避加载期间窗口级导航栏颜色被临时改动导致的闪黑。
+    -->
 
     <!-- 与内容区分隔的细线,和原 Material 组件视觉一致 -->
     <View

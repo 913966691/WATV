@@ -38,7 +38,7 @@ public class AboutDialog extends BottomPopupView {
     // Secondary acceleration mirror when primary is unavailable
     private static final String ACCEL_FALLBACK = "https://gh-proxy.com/";
 
-    private static final String RAW_UPDATE_JSON = "https://raw.githubusercontent.com/kukuqi666/TVBoxOS-Mobile/main/update.json";
+    private static final String RAW_UPDATE_JSON = "https://raw.githubusercontent.com/913966691/WATV/main/update.json";
 
     private LinearLayout downloadProgressLayout;
     private ProgressBar downloadProgressBar;
@@ -81,7 +81,7 @@ public class AboutDialog extends BottomPopupView {
 
     private void fetchManifest(String manifestUrl) {
         OkGo.<String>get(manifestUrl)
-                .headers("User-Agent", "TVBox-Mobile")
+                .headers("User-Agent", "WATV")
                 .tag("check_update")
                 .execute(new AbsCallback<String>() {
                     @Override
@@ -142,7 +142,7 @@ public class AboutDialog extends BottomPopupView {
 
     private void downloadApk(String acceleratedUrl, String rawUrl, String version) {
         OkGo.<File>get(acceleratedUrl)
-                .headers("User-Agent", "TVBox-Mobile")
+                .headers("User-Agent", "WATV")
                 .tag("download_update")
                 .execute(new AbsCallback<File>() {
                     @Override
@@ -156,7 +156,7 @@ public class AboutDialog extends BottomPopupView {
                         if (!directory.exists() && !directory.mkdirs()) {
                             throw new IllegalStateException("无法访问下载目录");
                         }
-                        File apk = new File(directory, "TVBox-Mobile-v" + version + ".apk");
+                        File apk = new File(directory, "WATV-v" + version + ".apk");
                         long total = response.body().contentLength();
                         long downloaded = 0;
                         int firstByte = -1;
@@ -282,7 +282,7 @@ public class AboutDialog extends BottomPopupView {
     private void installApk(File apk) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 && !getContext().getPackageManager().canRequestPackageInstalls()) {
-            ToastUtils.showLong("请允许 TVBox Mobile 安装未知应用后重试");
+            ToastUtils.showLong("请允许 蛙 TV 安装未知应用后重试");
             Intent settings = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                     Uri.parse("package:" + getContext().getPackageName()));
             getContext().startActivity(settings);

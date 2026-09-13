@@ -36,7 +36,7 @@ android {
 
         // Apk 输出配置
         variant.outputs.all { output ->
-            outputFileName = 'TVBox-Mobile-v' + variant.versionName + '.apk'
+            outputFileName = 'WATV-v' + variant.versionName + '.apk'
         }
     }
 

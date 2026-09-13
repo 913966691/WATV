@@ -9,7 +9,7 @@ fi
 
 tag_name="${1:?Usage: sync_release_metadata.sh [--skip-version-check] vX.Y.Z}"
 version="${tag_name#v}"
-repository="${GITHUB_REPOSITORY:-kukuqi666/TVBoxOS-Mobile}"
+repository="${GITHUB_REPOSITORY:-913966691/WATV}"
 app_version=$(sed -nE "s/^[[:space:]]*versionName '([^']+)'/\1/p" app/build.gradle)
 
 if [[ "$tag_name" != v* || ! "$version" =~ ^[0-9]+(\.[0-9]+)+$ ]]; then
@@ -22,7 +22,7 @@ if [[ "$skip_version_check" == false && "$app_version" != "$version" ]]; then
   exit 1
 fi
 
-apk_url="https://gh.xxooo.cf/https://github.com/${repository}/releases/download/${tag_name}/TVBox-Mobile-v${version}.apk"
+apk_url="https://gh.xxooo.cf/https://github.com/${repository}/releases/download/${tag_name}/WATV-v${version}.apk"
 readme_apk_url="$apk_url"
 
 printf '{\n  "version": "%s",\n  "apk_url": "%s"\n}\n' "$version" "$apk_url" > update.json
@@ -33,11 +33,11 @@ if ! grep -q 'TVbox-Mobile：' README.md; then
 fi
 
 README_APK_URL="$readme_apk_url" perl -0pi -e \
-  's{(?:https://gh\.xxooo\.cf/)+https://github\.com/[^/]+/[^/]+/releases/download/v[0-9.]+/TVBox-Mobile-v[0-9.]+\.apk}{$ENV{README_APK_URL}}g' README.md
+  's{(?:https://gh\.xxooo\.cf/)+https://github\.com/[^/]+/[^/]+/releases/download/v[0-9.]+/WATV-v[0-9.]+\.apk}{$ENV{README_APK_URL}}g' README.md
 
-if ! grep -q "TVBox Mobile v${version}" README.md; then
+if ! grep -q "蛙 TV v${version}" README.md; then
   release_date=$(date -u +%Y/%m/%d)
-  entry=">* **${release_date} TVBox Mobile v${version}：** 同步发布 Android APK、应用内更新清单和下载链接。\n>\n"
+  entry=">* **${release_date} 蛙 TV v${version}：** 同步发布 Android APK、应用内更新清单和下载链接。\n>\n"
   temp_file=$(mktemp)
   while IFS= read -r line || [[ -n "$line" ]]; do
     printf '%s\n' "$line"

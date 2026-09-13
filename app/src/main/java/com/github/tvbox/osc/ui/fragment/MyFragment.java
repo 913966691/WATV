@@ -20,11 +20,9 @@ import com.github.tvbox.osc.ui.activity.HistoryActivity;
 import com.github.tvbox.osc.ui.activity.LocalPlayActivity;
 import com.github.tvbox.osc.ui.activity.MovieFoldersActivity;
 import com.github.tvbox.osc.ui.activity.SettingActivity;
-import com.github.tvbox.osc.ui.dialog.WallpaperDialog;
 import com.github.tvbox.osc.util.FastClickCheckUtil;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.Utils;
-import com.github.tvbox.osc.util.WallpaperManager;
 import com.hjq.permissions.OnPermissionCallback;
 import com.hjq.permissions.Permission;
 import com.hjq.permissions.XXPermissions;
@@ -40,8 +38,6 @@ import java.util.List;
  * @description:
  */
 public class MyFragment extends BaseVbFragment<FragmentMyBinding> {
-
-    private static final int REQUEST_IMPORT_WALLPAPER = 9201;
 
 
     @Override
@@ -74,34 +70,7 @@ public class MyFragment extends BaseVbFragment<FragmentMyBinding> {
             }
         });
 
-        mBinding.tvWallpaper.setOnClickListener(v -> {
-            new XPopup.Builder(mActivity)
-                    .asCustom(new WallpaperDialog(mActivity, this::pickWallpaper))
-                    .show();
-        });
-
         // (主题切换已移除,只保留深色模式)
-    }
-
-    private void pickWallpaper() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("image/*");
-        startActivityForResult(intent, REQUEST_IMPORT_WALLPAPER);
-    }
-
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != REQUEST_IMPORT_WALLPAPER || resultCode != android.app.Activity.RESULT_OK
-                || data == null || data.getData() == null) return;
-        String value = WallpaperManager.get().importWallpaper(data.getData());
-        if (value.isEmpty()) {
-            ToastUtils.showShort("图片导入失败，请选择有效图片");
-        } else {
-            WallpaperManager.get().applyToActivity(mActivity);
-            ToastUtils.showShort("壁纸已导入并应用");
-        }
     }
 
     private void showPermissionTipPopup(){

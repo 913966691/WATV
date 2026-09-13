@@ -19,7 +19,7 @@
         <ImageView
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:contentDescription="TVBox Mobile"
+                android:contentDescription="蛙 TV"
                 android:src="@drawable/app_icon" />
 
         <LinearLayout
@@ -33,7 +33,7 @@
                     android:id="@+id/title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="TVBox Mobile"
+                    android:text="蛙 TV"
                     android:textColor="@color/text_foreground"
                     android:textSize="20sp"
                     android:textStyle="bold" />
@@ -83,7 +83,7 @@
     <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="https://github.com/kukuqi666/TVBoxOS-Mobile"
+            android:text="https://github.com/913966691/WATV"
             android:textIsSelectable="true"
             android:textColor="@color/text_sub_foreground"
             android:layout_marginTop="5dp"

@@ -1,4 +1,4 @@
-rootProject.name = "TVBoxMobile"
+rootProject.name = "WATV"
 include ':app'
 include ':player'
 include ':quickjs'

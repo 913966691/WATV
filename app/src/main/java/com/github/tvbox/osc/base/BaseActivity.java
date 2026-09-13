@@ -24,7 +24,6 @@ import com.github.tvbox.osc.event.RefreshEvent;
 import com.github.tvbox.osc.ui.activity.DetailActivity;
 import com.github.tvbox.osc.util.AppManager;
 import com.github.tvbox.osc.util.HawkConfig;
-import com.github.tvbox.osc.util.WallpaperManager;
 import com.github.tvbox.osc.util.Utils;
 import com.gyf.immersionbar.ImmersionBar;
 import com.hjq.bar.OnTitleBarListener;
@@ -70,8 +69,6 @@ public abstract class BaseActivity extends AppCompatActivity implements CustomAd
         initStatusBar();
         initTitleBar();
         init();
-        // Apply global wallpaper
-        WallpaperManager.get().applyToActivity(this);
         if (!App.getInstance().isNormalStart){
             AppUtils.relaunchApp(true);
         }

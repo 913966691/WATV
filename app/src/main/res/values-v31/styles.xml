@@ -19,7 +19,7 @@
             导致 splash 居中显示的是女模特,不是项目期望的青蛙。
             改用 @drawable/app_icon(青蛙 JPG 完整图,自带圆形浅色背景,不需要 adaptive icon mask)。
         -->
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/app_icon</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/app_icon_circle</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowDrawsSystemBarBackgrounds">false</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>

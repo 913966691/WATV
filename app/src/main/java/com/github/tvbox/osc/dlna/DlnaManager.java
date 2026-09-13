@@ -39,6 +39,13 @@ public class DlnaManager {
     private static final int SSDP_PORT = 1900;
     private static final String SEARCH_TARGET = "urn:schemas-upnp-org:device:MediaRenderer:1";
     private static final int SEARCH_TIMEOUT_MS = 3000;
+    /**
+     * 投屏事件订阅端口:起一个最小 HTTP server 接收 Macast/DMR 推过来的 NOTIFY 事件。
+     * 之前用 <http://0.0.0.0:0/> 占位,Macast 收到后会报 WinError 10049(地址无效),
+     * 导致 App 端永远拿不到真实播放状态变化回调,这是 DLNA 投屏多个边界场景异常的根因。
+     * 选 9980 是为了避开 RemoteServer 9978/9979 端口(它们已被占用)。
+     */
+    private static final int EVENT_CALLBACK_PORT = 9980;
 
     private final Context mContext;
     private final Handler mHandler = new Handler(Looper.getMainLooper());
@@ -48,6 +55,15 @@ public class DlnaManager {
             .connectTimeout(5000, java.util.concurrent.TimeUnit.MILLISECONDS)
             .readTimeout(5000, java.util.concurrent.TimeUnit.MILLISECONDS)
             .build();
+
+    /**
+     * 接收 DMR NOTIFY 事件用的最小 HTTP server。
+     * Android 上用 ServerSocket + 简单 HTTP 解析实现,避免引入 NanoHTTPD/OkHttp Server 等额外依赖。
+     * 关键修复:之前 SUBSCRIBE 时用 CALLBACK: <http://0.0.0.0:0/>,
+     * DMR 会按这个 URL 推 NOTIFY,0.0.0.0:0 在 PC 上无法绑定 → WinError 10049。
+     * 现在改成 <http://手机LAN_IP:9980/upnp/event>,DMR 能正常回调。
+     */
+    private EventCallbackServer mEventServer;
 
     private SearchCallback mSearchCallback;
     private WifiManager.MulticastLock mMulticastLock;
@@ -84,6 +100,18 @@ public class DlnaManager {
     }
 
     /**
+     * 关闭事件回调 server。建议在用户停止投屏 / 退出详情页时调用,释放 9980 端口。
+     */
+    public void release() {
+        stopSearch();
+        if (mEventServer != null) {
+            mEventServer.shutdown();
+            mEventServer = null;
+            Log.d(TAG, "EventCallbackServer released");
+        }
+    }
+
+    /**
      * 投屏到指定设备
      * 关键：如果 URL 是本地回环地址(127.0.0.1)，必须替换为手机局域网IP，否则设备端无法访问
      */
@@ -115,8 +143,10 @@ public class DlnaManager {
 
     /**
      * 订阅 AVTransport 和 RenderingControl 事件通知
+     * 关键:先确保 9980 端口的 EventCallbackServer 启动,否则 DMR 第一次 NOTIFY 会 connection refused。
      */
     private void subscribeEvents(DlnaDevice device) {
+        ensureEventServerStarted();
         if (device.eventUrl != null) {
             try {
                 subscribeToUrl(device.eventUrl, "AVTransport");
@@ -135,21 +165,155 @@ public class DlnaManager {
 
     /**
      * 发送 SUBSCRIBE 请求
+     * 修复:把 CALLBACK 从占位的 <http://0.0.0.0:0/> 改为真实可达的
+     * <http://手机LAN_IP:9980/upnp/event>,让 DMR(Macast/电视/盒子)能正常回调 NOTIFY 事件。
      */
     private void subscribeToUrl(String eventUrl, String serviceName) throws Exception {
+        // 取手机真实 LAN IP(不是 127.0.0.1,否则 DMR 还是访问不到)
+        String localIp = com.github.tvbox.osc.server.RemoteServer.getLocalIPAddress(mContext);
+        // UPnP 规范要求 CALLBACK 必须是合法 URL,且支持多个 callback 嵌套在 <>
+        String callback = "<http://" + localIp + ":" + EVENT_CALLBACK_PORT + "/upnp/event>";
+
         Request request = new Request.Builder()
                 .url(eventUrl)
                 .method("SUBSCRIBE", null)
-                .addHeader("CALLBACK", "<http://0.0.0.0:0/>")
+                .addHeader("CALLBACK", callback)
                 .addHeader("NT", "upnp:event")
                 .addHeader("TIMEOUT", "Second-300")
                 .addHeader("HOST", new java.net.URL(eventUrl).getHost() + ":" + new java.net.URL(eventUrl).getPort())
                 .build();
 
-        Log.d(TAG, "SUBSCRIBE " + serviceName + " -> " + eventUrl);
+        Log.d(TAG, "SUBSCRIBE " + serviceName + " -> " + eventUrl + " CALLBACK=" + callback);
         try (Response response = mHttpClient.newCall(request).execute()) {
             Log.d(TAG, "SUBSCRIBE " + serviceName + " response: HTTP " + response.code());
         }
+    }
+
+    /**
+     * 启动事件回调 server(端口 9980),用于接收 DMR(Macast/电视)推过来的 NOTIFY 事件。
+     * 这个 server 必须先起来,否则 SUBSCRIBE 时即便 CALLBACK 写对了,DMR 第一次 NOTIFY
+     * 也会 connection refused。
+     */
+    private void ensureEventServerStarted() {
+        if (mEventServer != null && mEventServer.isServerAlive()) {
+            return;
+        }
+        mEventServer = new EventCallbackServer();
+        mEventServer.start();
+        Log.d(TAG, "EventCallbackServer started on port " + EVENT_CALLBACK_PORT);
+    }
+
+    /**
+     * 最小 HTTP server,只处理 NOTIFY /upnp/event 请求,丢弃 body,返回 200。
+     * 用 Android 自带 java.net.ServerSocket 实现,不依赖第三方库。
+     */
+    private class EventCallbackServer extends Thread {
+        private java.net.ServerSocket mSocket;
+        private volatile boolean mAlive = true;
+
+        EventCallbackServer() {
+            super("DLNA-EventServer");
+        }
+
+        /**
+         * 重命名,避免和 Thread.isAlive() final 方法冲突。
+         * 原来叫 isAlive() 编译报错"被覆盖的方法为 final"。
+         */
+        boolean isServerAlive() {
+            return mAlive && mSocket != null && !mSocket.isClosed();
+        }
+
+        @Override
+        public void run() {
+            try {
+                mSocket = new java.net.ServerSocket(EVENT_CALLBACK_PORT);
+                while (mAlive) {
+                    try {
+                        final java.net.Socket client = mSocket.accept();
+                        new Thread(() -> handleNotify(client), "DLNA-EventHandler").start();
+                    } catch (java.io.IOException e) {
+                        if (mAlive) Log.w(TAG, "EventServer accept error", e);
+                    }
+                }
+            } catch (java.io.IOException e) {
+                Log.e(TAG, "EventCallbackServer failed to bind port " + EVENT_CALLBACK_PORT, e);
+            }
+        }
+
+        private void handleNotify(java.net.Socket client) {
+            try (java.io.InputStream in = client.getInputStream();
+                 java.io.OutputStream out = client.getOutputStream()) {
+                // 读 HTTP 请求头(直到 \r\n\r\n),body 不需要解析,只关心 path
+                java.io.BufferedReader br = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(in, "UTF-8"));
+                String line;
+                String nt = null;
+                String nts = null;
+                String sid = null;
+                int contentLength = 0;
+                while ((line = br.readLine()) != null && !line.isEmpty()) {
+                    if (line.startsWith("NT:")) nt = line.substring(3).trim();
+                    else if (line.startsWith("NTS:")) nts = line.substring(4).trim();
+                    else if (line.startsWith("SID:")) sid = line.substring(4).trim();
+                    else if (line.toLowerCase().startsWith("content-length:")) {
+                        try { contentLength = Integer.parseInt(line.substring(15).trim()); }
+                        catch (NumberFormatException ignore) {}
+                    }
+                }
+                // 把 body 也读掉,否则 DMR 会卡在写
+                if (contentLength > 0) {
+                    byte[] buf = new byte[contentLength];
+                    int read = 0;
+                    while (read < contentLength) {
+                        int n = in.read(buf, read, contentLength - read);
+                        if (n < 0) break;
+                        read += n;
+                    }
+                    String body = new String(buf, 0, read, "UTF-8");
+                    Log.d(TAG, "NOTIFY received NTS=" + nts + " SID=" + sid
+                            + " bodyLen=" + contentLength);
+                    // ★ 把投屏状态变更 post 到主线程,UI 可以订阅做提示/暂停本地播放等
+                    final String fNts = nts;
+                    final String fSid = sid;
+                    final String fBody = body;
+                    mHandler.post(() -> {
+                        if (mEventCallback != null) {
+                            mEventCallback.onNotify(fNts, fSid, fBody);
+                        }
+                    });
+                } else {
+                    Log.d(TAG, "NOTIFY received (no body) NTS=" + nts + " SID=" + sid);
+                }
+                // 返回 200 OK
+                String resp = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+                out.write(resp.getBytes("UTF-8"));
+                out.flush();
+            } catch (Exception e) {
+                Log.d(TAG, "handleNotify error: " + e.getMessage());
+            } finally {
+                // 用全限定名 java.io.IOException,避免编译器报"找不到符号"
+                try { client.close(); } catch (java.io.IOException ignore) {}
+            }
+        }
+
+        void shutdown() {
+            mAlive = false;
+            try { if (mSocket != null) mSocket.close(); } catch (java.io.IOException ignore) {}
+        }
+    }
+
+    private EventNotifyCallback mEventCallback;
+
+    /**
+     * 设置 NOTIFY 事件回调,UI 层可订阅做"投屏已开始/已暂停/已结束"提示,
+     * 以及"投屏后暂停本地播放"等联动逻辑。
+     */
+    public void setEventNotifyCallback(EventNotifyCallback cb) {
+        this.mEventCallback = cb;
+    }
+
+    public interface EventNotifyCallback {
+        void onNotify(String nts, String sid, String body);
     }
 
     /**

@@ -300,7 +300,40 @@ public class PlayFragment extends BaseLazyFragment {
 
             @Override
             public void toggleFullScreen() {
-                activity.toggleFullPreview();
+                // 旧入口保留,行为同 toggleLandscapeFullScreen(默认就是横屏全屏)。
+                // 之前由 Activity 内部根据视频宽高比自动选方向,容易把宽屏视频
+                // (1920x808)留在竖屏导致上下大黑条,所以改成统一走横屏。
+                toggleLandscapeFullScreen();
+            }
+
+            @Override
+            public void toggleLandscapeFullScreen() {
+                // ★ 强制横屏全屏(B 站"四角向外"图标):
+                // 1) 先把 Activity 旋转到 SENSOR_LANDSCAPE,确保视频占满宽屏画布
+                // 2) 再调 toggleFullPreview 把容器撑满可视区并隐藏详情面板
+                // 之前 toggleFullScreen() 由 Activity 根据视频宽高比自动判断方向,
+                // 1920x808 这种宽屏视频在竖屏会被压扁留大黑条,所以固定走横屏。
+                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                if (!activity.isFullWindows()) {
+                    activity.toggleFullPreview();
+                }
+            }
+
+            @Override
+            public void togglePortraitFullScreen() {
+                // ★ 强制竖屏全屏(B 站"上下双横线"图标):
+                // Activity 保持 PORTRAIT 方向不动,只调 toggleFullPreview 把预览容器撑满。
+                // 视频画面占满整个屏幕宽度,适合竖屏短视频(9:16/3:4)或用户想保留顶部状态栏
+                // 习惯性操作的应用场景。
+                //
+                // 不再 post 延迟:PORTRAIT 模式下不会触发 SurfaceView 重建,无需等一帧。
+                // 之前 post 延迟会引入 ~16ms 卡顿,反而造成点按不跟手。
+                if (activity.getRequestedOrientation() != ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) {
+                    activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                }
+                if (!activity.isFullWindows()) {
+                    activity.toggleFullPreview();
+                }
             }
 
             @Override
@@ -384,17 +417,32 @@ public class PlayFragment extends BaseLazyFragment {
 
     /**
      * activity返回/点击播放器切换全屏操作等
+     *
+     * @param forceLandscape 进入全屏时如果为 true,无论视频宽高比都强制横屏(横屏全屏按钮);
+     *                       如果为 false(默认)且视频宽>高,Activity 自动旋转到横屏
+     *                       —— 这正是旧逻辑被吐槽的"竖屏按钮点了却变横屏"的根因。
      */
-    public void changedLandscape(boolean fullWindows) {
+    public void changedLandscape(boolean fullWindows, boolean forceLandscape) {
         mFullWindows = fullWindows;
         if (fullWindows){
             int[] size = mVideoView.getVideoSize();
             int width = size[0];
             int height = size[1];
-            if (width>height){//根据视频尺寸判断是否横屏,小视频则只在activity改了预览尺寸(全屏预览)
-                //横屏(传感器)
+            if (forceLandscape) {
+                // ★ 用户明确点了横屏全屏按钮:Activity 强制 SENSOR_LANDSCAPE,
+                // 不再被视频宽高比牵着走。
+                mActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+            } else if (mActivity.getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) {
+                // ★ 用户明确点了竖屏全屏按钮:即使视频是宽屏(1920x808 这种),
+                // 也尊重用户意图,保持 PORTRAIT 不动。
+                // 之前这里会被 width>height 强转横屏,导致竖屏全屏按钮"有概率"变成横屏。
+                // 不做任何 setRequestedOrientation 调用。
+                android.util.Log.d("TVBoxDiag", "changedLandscape: respect user PORTRAIT choice, skip rotation");
+            } else if (width > height) {
+                // 进入全屏前已经是 LANDSCAPE/SENSOR_LANDSCAPE 且视频是宽屏:保持当前方向
                 mActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
             }
+            // 竖屏视频(width<=height)且用户在 LANDSCAPE:不主动改方向,沿用当前
 
             // 进入全屏:用 Android 原生 WindowInsetsController 真正隐藏状态栏+导航栏,
             // ImmersionBar 的 hideBar(FLAG_HIDE_BAR) 在某些 ROM / Android 14 上并不真生效,
@@ -429,6 +477,21 @@ public class PlayFragment extends BaseLazyFragment {
         }
 
         mController.changedLandscape(fullWindows);
+    }
+
+    /**
+     * 兼容旧调用:不指定 forceLandscape 时按"视频宽>高自动横屏"的旧行为走。
+     * 但当 Activity 当前明确处于 PORTRAIT 状态(竖屏全屏按钮刚触发),尊重用户意图。
+     */
+    public void changedLandscape(boolean fullWindows) {
+        boolean forceLandscape;
+        if (fullWindows) {
+            // Activity 已处于 PORTRAIT → 用户明确选竖屏,不要被视频尺寸覆盖
+            forceLandscape = mActivity.getRequestedOrientation() != ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+        } else {
+            forceLandscape = false;
+        }
+        changedLandscape(fullWindows, forceLandscape);
     }
 
     /**

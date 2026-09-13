@@ -807,6 +807,12 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
     boolean showPreview = Hawk.get(HawkConfig.SHOW_PREVIEW, true);
     ; // true 开启 false 关闭
     boolean fullWindows = false;
+    /**
+     * 对外暴露全屏状态,供 PlayFragment 等其他包的类判断当前是否已经处于全屏,
+     * 避免重复调用 toggleFullPreview 造成状态错乱。
+     */
+    public boolean isFullWindows() { return fullWindows; }
+
     ViewGroup.LayoutParams windowsPreview = null;
     ViewGroup.LayoutParams windowsFull = null;
 
@@ -1076,6 +1082,15 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
                 mBinding.previewPlayer.requestLayout();
                 if (videoView != null) videoView.requestLayout();
                 diagLayout("LAND-fullscreen");
+            } else if (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                // ★ Bug 修复兜底:onConfigurationChanged 收到 PORTRAIT 通知时,
+                // 如果 fullWindows 标志位还在 true(说明用户走的是 PlayerTitleView 的返回按钮,
+                // 那条路径完全没调 toggleFullPreview),就在这里强制复位。
+                android.util.Log.d("TVBoxDiag", "onConfigurationChanged PORTRAIT but fullWindows=true, force exit fullscreen");
+                fullWindows = false;
+                if (playFragment != null) playFragment.changedLandscape(false);
+                exitFullscreenLayout();
+                mBinding.previewPlayer.post(this::applyPreviewPlayerRatio);
             } else {
                 // 非全屏:旋转/分屏后重新按 16:9 计算预览播放器高度
                 applyPreviewPlayerRatio();
@@ -1110,7 +1125,10 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         fullWindows = !fullWindows;
         android.util.Log.d("TVBoxDiag", "toggleFullPreview -> fullWindows=" + fullWindows);
 
-        //交由fragment处理播放器全屏逻辑
+        // ★ 进入全屏时,根据用户意图决定是否强制横屏:
+        // - 横屏全屏按钮 → 强制横屏
+        // - 竖屏全屏按钮 / 系统返回键 → 不强制,尊重当前 Activity 方向
+        // (默认是横屏全屏按钮的语义,外部通过 toggleFullPreviewWithIntent 显式指定)
         playFragment.changedLandscape(fullWindows);
         if (fullWindows) {
             // 进入全屏:根布局 padding 清零 + 隐藏 llLayout + 容器 TOP gravity 铺满。
@@ -1131,9 +1149,12 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         } else {
             // 退出全屏:清掉可能过期的缓存,按"当前真实屏幕方向"重新算 16:9,
             // 避免横屏下套用竖屏缓存的 1080x607 导致画面缩成一块。
-            windowsPreview = null;
-            mBinding.previewPlayer.setLayoutParams(new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            //
+            // ★ Bug 修复:之前漏写 llLayout.setVisibility(VISIBLE) 导致从全屏返回后
+            // 整个详情面板(标题/线路/选集/简介)永远消失,只看到底部一片黑屏。
+            // 同时强制把 previewPlayerPlace 占位 LinearLayout 高度重置回 wrap_content,
+            // 避免上次全屏残留的 MATCH_PARENT 把占位区域撑爆覆盖整个布局。
+            exitFullscreenLayout();
             mBinding.previewPlayer.post(this::applyPreviewPlayerRatio);
         }
         mBinding.mGridView.setVisibility(fullWindows ? View.GONE : View.VISIBLE);
@@ -1143,6 +1164,43 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         mBinding.tvSort.setFocusable(!fullWindows);
         mBinding.tvCollect.setFocusable(!fullWindows);
         toggleSubtitleTextSize();
+    }
+
+    /**
+     * 恢复非全屏状态下的详情页面布局。
+     * <p>
+     * 该方法抽出来是为了让 PlayerTitleView(播放器左上角返回按钮)和
+     * onConfigurationChanged(屏幕旋转)两条路径都能调用,确保无论从哪条路径
+     * 退出全屏,详情面板都能正确恢复显示。
+     * <p>
+     * BUG 历史:之前这个逻辑只在 toggleFullPreview 的 else 分支写了一半,
+     * 详情面板在进入全屏时被 GONE 了但退出全屏时没人把它设回 VISIBLE,
+     * 导致用户每次从全屏返回都看到空白的详情页。
+     */
+    public void exitFullscreenLayout() {
+        if (mBinding.llLayout != null) {
+            mBinding.llLayout.setVisibility(View.VISIBLE);
+        }
+        // previewPlayerPlace 是详情面板里的占位 LinearLayout,
+        // 全屏状态下被人改成了 MATCH_PARENT(见 toggleFullPreview 进入全屏分支),
+        // 退出时必须还原成 wrap_content,否则会把整个 ScrollView 挤出去。
+        if (mBinding.previewPlayerPlace != null) {
+            ViewGroup.LayoutParams placeLp = mBinding.previewPlayerPlace.getLayoutParams();
+            if (placeLp != null) {
+                placeLp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+                mBinding.previewPlayerPlace.setLayoutParams(placeLp);
+            }
+        }
+        // 清掉全屏缓存,让 applyPreviewPlayerRatio 按当前视频比例重新计算
+        windowsPreview = null;
+        // previewPlayer 容器还原成 wrap_content,等比例尺寸由 applyPreviewPlayerRatio 写入
+        mBinding.previewPlayer.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        // 重新恢复详情页的系统栏状态(状态栏背景色 / 导航栏颜色 / ImmersionBar)
+        if (playFragment != null) {
+            playFragment.showSystemBars();
+        }
+        android.util.Log.d("TVBoxDiag", "exitFullscreenLayout: llLayout=VISIBLE previewPlayerPlace=WRAP");
     }
 
     /**

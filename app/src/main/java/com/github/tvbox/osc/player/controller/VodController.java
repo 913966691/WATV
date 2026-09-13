@@ -356,7 +356,16 @@ public class VodController extends BaseController {
             listener.showSetting();
         });
         findViewById(R.id.iv_fullscreen).setOnClickListener(view -> {
-            listener.toggleFullScreen();
+            // ★ 横屏全屏按钮:固定走横向传感器全屏,不再自动判断视频宽高比。
+            // 之前 toggleFullScreen() 由 Activity 内部决定横/竖屏,会导致竖屏看宽屏视频
+            // (如九门 1920x808)时只填一半屏幕、上下大黑条。现在强制横屏让画面铺满。
+            listener.toggleLandscapeFullScreen();
+            hideBottom();
+        });
+        findViewById(R.id.iv_portrait_fullscreen).setOnClickListener(view -> {
+            // ★ 竖屏全屏按钮:固定走竖向全屏(把预览区撑满但保持 Activity 竖屏方向),
+            // 用于用户在竖屏状态想"全屏预览但又能看到下面选集"等场景。
+            listener.togglePortraitFullScreen();
             hideBottom();
         });
         findViewById(R.id.cast).setOnClickListener(v -> {
@@ -773,6 +782,19 @@ public class VodController extends BaseController {
         void selectAudioTrack();
 
         void toggleFullScreen();
+
+        /**
+         * 强制横屏全屏:Activity 直接旋转到 SENSOR_LANDSCAPE,适用于想完整铺满宽屏视频
+         * (如 1920x808 这种超宽比)的场景。不会再像原来 toggleFullScreen 那样由 Activity
+         * 内部根据视频尺寸自己决定是横是竖。
+         */
+        void toggleLandscapeFullScreen();
+
+        /**
+         * 强制竖屏全屏:Activity 保持 PORTRAIT 但把预览区域撑满屏幕宽度,
+         * 用于在竖屏状态下想"全屏预览但仍能看到 Activity 标题栏"的场景。
+         */
+        void togglePortraitFullScreen();
 
         void exit();
 

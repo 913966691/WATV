@@ -309,12 +309,22 @@
                 />
 
             <androidx.appcompat.widget.AppCompatImageView
+                android:id="@+id/iv_portrait_fullscreen"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:scaleType="centerCrop"
+                android:padding="4dp"
+                android:contentDescription="竖屏全屏播放"
+                android:src="@drawable/ic_fullscreen_portrait"/>
+
+            <androidx.appcompat.widget.AppCompatImageView
                 android:id="@+id/iv_fullscreen"
                 android:layout_width="34dp"
                 android:layout_height="34dp"
                 android:scaleType="centerCrop"
                 android:padding="4dp"
-                android:src="@drawable/ic_fullscreen"/>
+                android:contentDescription="横屏全屏播放"
+                android:src="@drawable/ic_fullscreen_landscape"/>
         </LinearLayout>
 
             <HorizontalScrollView

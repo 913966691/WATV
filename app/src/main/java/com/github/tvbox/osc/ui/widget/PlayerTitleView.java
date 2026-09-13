@@ -66,6 +66,16 @@ public class PlayerTitleView extends FrameLayout implements IControlComponent {
                 Activity activity = PlayerUtils.scanForActivity(getContext());
                 if (activity != null) {
                     if (mControlWrapper.isFullScreen()){
+                        // ★ Bug 修复:如果是 DetailActivity(详情+播放器共用),
+                        // 必须先调 toggleFullPreview 让 Activity 把详情面板恢复显示、
+                        // previewPlayerPlace 还原成 wrap_content,并翻转 fullWindows 标志位。
+                        // 之前这条路径只调 setRequestedOrientation + stopFullScreen(),
+                        // 完全绕过 DetailActivity 的状态机,导致从全屏返回后
+                        // 详情面板(标题/线路/选集)永久 GONE,只剩顶部一小块视频画面。
+                        if (activity instanceof com.github.tvbox.osc.ui.activity.DetailActivity) {
+                            ((com.github.tvbox.osc.ui.activity.DetailActivity) activity).toggleFullPreview();
+                            return;
+                        }
                         activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
                         mControlWrapper.stopFullScreen();
                     }else {

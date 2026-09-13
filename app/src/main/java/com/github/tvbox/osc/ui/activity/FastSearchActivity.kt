@@ -1,11 +1,19 @@
 package com.github.tvbox.osc.ui.activity
 
+import android.content.ContentResolver
 import android.content.DialogInterface
+import android.content.res.Configuration
+import android.database.ContentObserver
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import android.text.Editable
 import android.text.TextUtils
 import android.text.TextWatcher
+import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.LayoutInflater
@@ -87,8 +95,98 @@ class FastSearchActivity : BaseVbActivity<ActivityFastSearchBinding>(), TextWatc
     private var mSearchSuggestionsDialog: SearchSuggestionsDialog? = null
     override fun useImmersionBar(): Boolean = false
 
+    /**
+     * ★ 调试日志开关:打开后会输出 FastSearchActivity 的方向变化全链路。
+     * Tag = "FastSearchDir",便于 adb logcat | grep FastSearchDir 单独过滤。
+     * 保留为 true 直到问题修复完毕,可后续改成 false 或删除。
+     */
+    private val DIR_TAG = "FastSearchDir"
+
+    /**
+     * ContentObserver:监听系统级"自动旋转"开关(ACCELEROMETER_ROTATION)的变化。
+     * 用户在系统设置里切换"自动旋转"后,这里会接到 onChange 回调,然后再调一次
+     * applySystemRotationLock(),让 Activity 的方向立刻跟随新的系统策略走。
+     *
+     * 不要在主线程 register 时使用 notifyForDescendants=true 否则可能死锁。
+     */
+    private val rotationObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean, uri: Uri?) {
+            super.onChange(selfChange, uri)
+            Log.d(DIR_TAG, "rotationObserver.onChange uri=$uri selfChange=$selfChange")
+            applySystemRotationLock()
+        }
+    }
+
+    /**
+     * ★ 核心策略:根据系统级"自动旋转"开关状态,动态调整 Activity 的方向。
+     *
+     * 用户需求是:系统锁竖屏时 → 保持竖屏(不被横放手机的物理方向短暂触发);系统解锁 → 跟着物理方向旋转。
+     *
+     * Settings.System.ACCELEROMETER_ROTATION:
+     *   0 = 系统级旋转关闭(用户在系统设置里锁了竖屏/横屏)
+     *   1 = 系统级旋转开启(根据传感器物理方向自动旋转)
+     *
+     * 不能简单地信任 manifest 配置——
+     *   - `portrait` 太绝对,系统解锁也锁竖屏(用户不希望这样)
+     *   - `sensor` 在某些 ROM 上会被物理方向短暂触发为横屏(用户也不希望)
+     * 所以运行时动态切换:
+     *   - 系统锁(ACCELEROMETER_ROTATION=0)→ requestedOrientation=PORTRAIT(绝对竖屏)
+     *   - 系统开(ACCELEROMETER_ROTATION=1)→ requestedOrientation=SENSOR(跟随物理方向)
+     */
+    private fun applySystemRotationLock() {
+        val sysRotLocked = try {
+            Settings.System.getInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 1)
+        } catch (e: Settings.SettingNotFoundException) { -1 }
+        try {
+            requestedOrientation = when (sysRotLocked) {
+                0 -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                1 -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR
+                else -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+        } catch (e: Throwable) {
+            Log.w(DIR_TAG, "applySystemRotationLock setRequestedOrientation failed", e)
+        }
+        Log.d(DIR_TAG, "applySystemRotationLock: accelerometerRotation=$sysRotLocked"
+                + " requestedOrientation=" + requestedOrientation)
+    }
+
     override fun init() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        // ★ 注册监听:系统级 ACCELEROMETER_ROTATION 变化时,自动重新计算方向策略
+        try {
+            contentResolver.registerContentObserver(
+                Settings.System.getUriFor(Settings.System.ACCELEROMETER_ROTATION),
+                false,
+                rotationObserver)
+        } catch (e: Throwable) {
+            Log.w(DIR_TAG, "registerContentObserver failed", e)
+        }
+
+        // ★ 入口第一次:按当前系统状态决定方向
+        applySystemRotationLock()
+
+        // ★ 调试:打印当前真实方向状态(给用户定位"系统锁竖屏但还是跟着旋转"问题用)
+        val cfg = resources.configuration
+        val sysRotLocked = try {
+            Settings.System.getInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 1)
+        } catch (e: Settings.SettingNotFoundException) { -1 }
+        val rotMgr = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                window.windowManager?.defaultDisplay?.rotation ?: -1
+            } catch (e: Throwable) { -1 }
+        } else -1
+        // 用 PackageManager 读 manifest 里配的方向(等价 activityInfo.screenOrientation,
+        // 但 Kotlin 调用 activityInfo 这个 protected 属性有时编译报错——用 PackageManager 兼容)
+        val manifestOrient = try {
+            packageManager.getActivityInfo(componentName, 0).screenOrientation
+        } catch (e: Throwable) { -1 }
+        Log.d(DIR_TAG, "init: orientation=" + cfg.orientation
+                + " screenW=" + cfg.screenWidthDp + " screenH=" + cfg.screenHeightDp
+                + " requestedOrientation=" + requestedOrientation
+                + " accelerometerRotation=" + sysRotLocked
+                + " display.rotation=" + rotMgr
+                + " manifestOrient=" + manifestOrient)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val lp = window.attributes
             lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
@@ -117,6 +215,18 @@ class FastSearchActivity : BaseVbActivity<ActivityFastSearchBinding>(), TextWatc
 
     override fun onResume() {
         super.onResume()
+        // ★ 回到前台时重新应用方向策略:用户可能在其他 Activity 期间改了系统级"自动旋转"开关,
+        // 或者 Activity 被系统重建,这里再调一次让方向跟随当前系统状态走。
+        applySystemRotationLock()
+
+        // ★ 调试:每次回到前台都打一次方向,因为 Activity 可能在后台被系统 recreate 时
+        // 没有重新 init(),但方向变化会通过 onConfigurationChanged 进入(manifest 配了
+        // configChanges),所以 onResume 也能兜底记录一次真实状态。
+        val cfg = resources.configuration
+        Log.d(DIR_TAG, "onResume: orientation=" + cfg.orientation
+                + " width(dp)=" + cfg.screenWidthDp + "x" + cfg.screenHeightDp
+                + " requestedOrientation=" + requestedOrientation)
+
         if (pauseRunnable != null && pauseRunnable!!.size > 0) {
             searchExecutorService = Executors.newFixedThreadPool(10)
             allRunCount.set(pauseRunnable!!.size)
@@ -619,6 +729,40 @@ class FastSearchActivity : BaseVbActivity<ActivityFastSearchBinding>(), TextWatc
         } catch (th: Throwable) {
             th.printStackTrace()
         }
+        // ★ 注销系统旋转设置监听,避免内存泄漏
+        try {
+            contentResolver.unregisterContentObserver(rotationObserver)
+        } catch (th: Throwable) {
+            th.printStackTrace()
+        }
+    }
+
+    /**
+     * ★ 调试:manifest 已经配了 configChanges="orientation|screenSize|keyboardHidden",
+     * 所以旋转时不会重建 Activity,而是进这个回调。
+     * 把每次方向变化的输入/输出都记录下来,帮用户定位"系统锁竖屏但还是跟着旋转"的真正根因。
+     *
+     * 之前这里有一段强制拉回 PORTRAIT 的兜底,现在删掉——方向策略改由
+     * applySystemRotationLock() 根据系统级 ACCELEROMETER_ROTATION 决定:
+     *   - 系统锁竖屏 → PORTRAIT
+     *   - 系统解锁 → SENSOR(跟随物理方向)
+     * 这里的 onConfigurationChanged 只负责打印日志,不再做扳回动作。
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val sysRotLocked = try {
+            Settings.System.getInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 1)
+        } catch (e: Settings.SettingNotFoundException) { -1 }
+        Log.d(DIR_TAG, "onConfigurationChanged: orientation=" + newConfig.orientation
+                + " newSize=" + newConfig.screenWidthDp + "x" + newConfig.screenHeightDp
+                + " accelerometerRotation=" + sysRotLocked
+                + " requestedOrientation=" + requestedOrientation)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        Log.d(DIR_TAG, "onPause: orientation=" + resources.configuration.orientation
+                + " requestedOrientation=" + requestedOrientation)
     }
 
     override fun beforeTextChanged(charSequence: CharSequence, i: Int, i1: Int, i2: Int) {}

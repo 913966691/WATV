@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+
+    <!--应用的主要色调,actionBar默认使用该颜色,Toolbar导航栏的底色-->
+    <color name="colorPrimary">@color/bili_pink</color>
+    <!--CheckBox,RadioButton,SwitchCompat等一般控件的选中效果默认采用该颜色-->
+    <color name="colorAccent">@color/bili_blue</color>
+    <!--    默认window窗口(activity)背景颜色-->
+    <color name="windowBackground">@color/bili_bg_page</color>
+
+    <!-- ===== B站风格设计令牌 ===== -->
+    <!-- 品牌粉,主色/选中态 -->
+    <color name="bili_pink">#FB7299</color>
+    <!-- 品牌蓝,链接/站点名 -->
+    <color name="bili_blue">#00AEEC</color>
+    <!-- 页面背景 -->
+    <color name="bili_bg_page">#F6F7F8</color>
+    <!-- 卡片/弹窗背景 -->
+    <color name="bili_bg_card">#FFFFFF</color>
+    <!-- 胶囊/输入框/chip背景 -->
+    <color name="bili_bg_chip">#F1F2F3</color>
+    <!-- 分割线 -->
+    <color name="bili_divider">#E3E5E7</color>
+    <!-- 一级文字 -->
+    <color name="bili_text_primary">#18191C</color>
+    <!-- 二级文字 -->
+    <color name="bili_text_secondary">#61666D</color>
+    <!-- 三级文字/占位 -->
+    <color name="bili_text_tertiary">#9499A0</color>
+    <!-- 箭头/描边 -->
+    <color name="bili_arrow">#C9CCD0</color>
+    <!-- 角标/遮罩(黑色半透明) -->
+    <color name="bili_badge">#CC000000</color>
+    <!-- 菜单项/标题图标随主题色:浅色下深色,深色下浅色 -->
+    <color name="my_icon_tint">#18191C</color>
+
+    <color name="bg_gray">@color/bili_divider</color>
+    <color name="bg_bottom_navigation">@color/bili_bg_card</color>
+    <color name="gray_darker">@color/bili_text_tertiary</color>
+    <!--    深灰点击透明度-->
+    <color name="gray_darker_press_alpha">#3C808080</color>
+
+    <!--    通用颜色-->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="text_foreground">@color/bili_text_primary</color>
+    <color name="text_sub_foreground">@color/bili_text_secondary</color>
+    <color name="light_gray_color">#e6e6e6</color>
+    <!--    警示黄色-->
+    <color name="warn">#ffcb6b</color>
+    <color name="red">#ff4444</color>
+
+    <color name="disable_text">@color/bili_arrow</color>
+
+    <!--    带点透明度(e6 90/100不透明)的pop-->
+    <color name="bg_popup">@color/bili_bg_card</color>
+
+    <!--    制定颜色-->
+    <!--    页面背景色,activity.fragment等-->
+    <color name="bg_page">#000000</color>
+    <!--    不可用灰色颜色-->
+    <color name="disable_gray">@color/bili_arrow</color>
+
+    <color name="orange">#FF6E40</color>
+
+    <color name="color_6200EE">#6200EE</color>
+    <color name="color_3700B3">#3700B3</color>
+    <color name="color_03DAC5">#03DAC5</color>
+    <color name="title_fouse_n">#ffce7900</color>
+    <color name="color_1890FF">#1890FF</color>
+    <color name="color_FFB800">#FF6600</color>
+    <color name="color_00FF0A">#00FF0A</color>
+    <color name="color_CBF46A">#CBF46A</color>
+    <color name="color_FF90CA09">#90CA09</color>
+    <color name="color_BD0CADE2">#BD0CADE2</color>
+    <color name="color_FF0057">#FF0057</color>
+    <color name="color_FF5F00">#FF5F00</color>
+    <color name="color_FFB6C1">#FFB6C1</color>
+    <color name="color_3D3D3D">#3D3D3D</color>
+    <color name="color_32364E">#32364E</color>
+    <color name="color_6632364E">#6632364E</color>
+    <color name="color_CCFFFFFF">#BBFFFFFF</color>
+    <color name="color_0CADE2">#0CADE2</color>
+    <color name="color_6CFFFFFF">#6CFFFFFF</color>
+    <color name="color_66000000">#66000000</color>
+    <color name="color_99000000">#99000000</color>
+    <color name="color_02F8E1">#02F8E1</color>
+    <color name="color_353744">#353744</color>
+    <color name="color_CC353744">#CC353744</color>
+    <color name="color_6C3D3D3D">#6c3d3d3d</color>
+    <color name="color_BBFFFFFF">#bbffffff</color>
+    <color name="color_FFFFFF">#ffffffff</color>
+    <color name="color_33FFFFFF">#33ffffff</color>
+    <color name="color_99FFFFFF">#4D777373</color>
+    <color name="color_59353744">#59353744</color>
+    <color name="color_80FF0057">#66FF0057</color>
+
+</resources>

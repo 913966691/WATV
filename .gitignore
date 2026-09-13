@@ -1,0 +1,88 @@
+# ==============================
+# 构建产物
+# ==============================
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+bin/
+gen/
+out/
+build/
+.gradle/
+.externalNativeBuild/
+.cxx/
+proguard/
+
+# ==============================
+# IDE 配置
+# ==============================
+.idea/
+*.iml
+*.ipr
+*.iws
+captures/
+.navigation/
+
+# ==============================
+# 本地配置（环境相关）
+# ==============================
+local.properties
+
+# ==============================
+# 日志与调试文件
+# ==============================
+*.log
+
+# ==============================
+# 系统文件
+# ==============================
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# ==============================
+# 签名密钥（安全相关）
+# ==============================
+*.jks
+*.keystore
+
+# ==============================
+# WorkBuddy / AI 工作目录
+# ==============================
+.workbuddy/
+
+# ==============================
+# 项目特定
+# ==============================
+/app/release/
+/LTDecodeSpace
+/adb.exe
+/LTDecodeNew3.exe
+overview.md
+
+# ==============================
+# fastlane
+# ==============================
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+fastlane/readme.md
+
+# ==============================
+# Freeline
+# ==============================
+freeline.py
+freeline/
+freeline_project_description.json
+
+# ==============================
+# Lint 中间产物
+# ==============================
+lint/intermediates/
+lint/generated/
+lint/outputs/
+lint/tmp/

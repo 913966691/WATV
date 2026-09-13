@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    自绘底部导航(替代 Material BottomNavigationView)
+
+    为什么要自绘:
+    Material BottomNavigationView 内部 BottomNavigationMenuView.onMeasure 用
+    inactiveItemMinWidth(80dp)/MaxWidth(168dp) 限制 item 宽度,横屏大屏下
+    按这些 min/max 算出的 content width 远小于屏宽,导致 4 个 tab 视觉上"挤在中间"、
+    左右各留大段同色空区域,且左右边距不对称。
+    反射改私有字段(activeItemMaxWidth/inactiveItemMaxWidth)在不同 Android 版本/Material 版本
+    上行为不一致,不可靠。
+
+    自绘方案用 LinearLayout + 4 个等宽(weight=1)子项,weight 机制保证:
+      - 每个 tab 宽度严格 = 容器宽 / 4
+      - 4 个 tab 必定铺满容器宽度,左右无留白、边距对称
+    完全规避 Material 的测宽逻辑。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <!-- 与内容区分隔的细线,和原 Material 组件视觉一致 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:background="@color/bili_divider" />
+
+    <LinearLayout
+        android:id="@+id/bottom_nav_container"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/bili_nav_h"
+        android:background="@color/bili_bg_card"
+        android:baselineAligned="false"
+        android:orientation="horizontal">
+
+        <!-- Tab 1: 首页 -->
+        <LinearLayout
+            android:id="@+id/tab_home"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:selectableItemBackgroundBorderless"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:id="@+id/iv_home"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:contentDescription="首页"
+                android:src="@drawable/ic_home" />
+
+            <TextView
+                android:id="@+id/tv_home"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="首页"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- Tab 2: 直播 -->
+        <LinearLayout
+            android:id="@+id/tab_live"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:selectableItemBackgroundBorderless"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:id="@+id/iv_live"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:contentDescription="直播"
+                android:src="@drawable/ic_live" />
+
+            <TextView
+                android:id="@+id/tv_live"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="直播"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- Tab 3: 订阅 -->
+        <LinearLayout
+            android:id="@+id/tab_subscribe"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:selectableItemBackgroundBorderless"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:id="@+id/iv_subscribe"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:contentDescription="订阅"
+                android:src="@drawable/ic_database_48" />
+
+            <TextView
+                android:id="@+id/tv_subscribe"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="订阅"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- Tab 4: 我的 -->
+        <LinearLayout
+            android:id="@+id/tab_my"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:selectableItemBackgroundBorderless"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:id="@+id/iv_my"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:contentDescription="我的"
+                android:src="@drawable/ic_my" />
+
+            <TextView
+                android:id="@+id/tv_my"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="我的"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

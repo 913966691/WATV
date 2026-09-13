@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:paddingHorizontal="@dimen/bili_margin_h"
+    android:paddingVertical="6dp"
+    android:layout_marginBottom="4dp"
+    android:background="?android:selectableItemBackground">
+
+    <ImageView
+        android:id="@+id/ivThumb"
+        android:layout_width="100dp"
+        android:layout_height="140dp"
+        android:scaleType="centerCrop"
+        android:layout_gravity="center_vertical" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_gravity="center_vertical"
+        android:paddingHorizontal="12dp">
+
+        <TextView
+            android:id="@+id/tvName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="@style/BiliCardTitle"
+            tools:text="肖申克的救赎"
+            />
+
+        <TextView
+            android:id="@+id/tvSite"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="@style/BiliCardSub"
+            android:layout_marginTop="4dp"
+            android:textColor="@color/bili_blue"
+            tools:text="剪片小站"
+            />
+
+        <TextView
+            android:id="@+id/tvNote"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            tools:text="更新至10集 1080p"
+            style="@style/BiliCardSub"
+            android:layout_marginTop="6dp" />
+    </LinearLayout>
+
+</LinearLayout>

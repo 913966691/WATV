@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        Android 12 (API 31) 起,系统会强制给 launcher Activity 加一层"系统启动画面":
+        默认把 app 图标居中显示在 windowBackground 底色上。横屏时这层画面不铺满屏幕,
+        表现为图标和底色只占中间一块、四周留黑边。
+
+        这里用 framework 自带的 windowSplashScreen* 属性接管这层画面:
+          - android:windowSplashScreenBackground: 整屏背景色,会真正铺满(含横屏)
+          - android:windowSplashScreenAnimatedIcon: 居中图标
+        注意这些是 framework 属性(带 android: 前缀),不需要 androidx.core:core-splashscreen 依赖。
+    -->
+    <style name="AppTheme.Launcher" parent="AppTheme">
+        <item name="android:windowBackground">@drawable/bg_splash</item>
+        <item name="android:windowSplashScreenBackground">@color/white</item>
+        <!--
+            关键:之前误用 @drawable/iv_splash 是个 webp(9KB 原项目自带的美女启动图),
+            导致 splash 居中显示的是女模特,不是项目期望的青蛙。
+            改用 @drawable/app_icon(青蛙 JPG 完整图,自带圆形浅色背景,不需要 adaptive icon mask)。
+        -->
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/app_icon</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <item name="android:fitsSystemWindows">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+</resources>

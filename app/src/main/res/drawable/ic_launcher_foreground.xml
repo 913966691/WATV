@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+        adaptive icon 的前景区域是 108x108dp (即实际安全区是 72x72dp 中心)。
+        inset 0% 让前景图片填满安全区,避免 logo 被过度缩小。
+        系统 launcher 会按自身 mask 形状(圆/方/水滴)裁切,不会被切掉内容。
+    -->
+    <item
+        android:drawable="@drawable/app_icon"
+        android:inset="0%" />
+</layer-list>

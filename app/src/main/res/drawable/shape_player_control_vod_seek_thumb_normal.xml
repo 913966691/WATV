@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <!--    B站风格:进度条圆点品牌粉-->
+    <solid android:color="@color/bili_pink" />
+    <size
+        android:width="12dp"
+        android:height="12dp" />
+</shape>

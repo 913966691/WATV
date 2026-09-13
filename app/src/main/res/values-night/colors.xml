@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- ===== B站风格设计令牌(夜间) ===== -->
+    <color name="bili_pink">#FB7299</color>
+    <color name="bili_blue">#00AEEC</color>
+    <!-- 页面背景 -->
+    <color name="bili_bg_page">#17181A</color>
+    <!-- 卡片/弹窗背景 -->
+    <color name="bili_bg_card">#1C1F23</color>
+    <!-- 胶囊/输入框/chip背景(比卡片稍亮,保证在卡片上可辨识) -->
+    <color name="bili_bg_chip">#26282C</color>
+    <!-- 分割线 -->
+    <color name="bili_divider">#2F3134</color>
+    <!-- 一级文字 -->
+    <color name="bili_text_primary">#E3E5E7</color>
+    <!-- 二级文字 -->
+    <color name="bili_text_secondary">#A2A7AE</color>
+    <!-- 三级文字/占位 -->
+    <color name="bili_text_tertiary">#7F8792</color>
+    <!-- 箭头/描边 -->
+    <color name="bili_arrow">#4A4D51</color>
+    <!-- 角标/遮罩(黑色半透明) -->
+    <color name="bili_badge">#CC000000</color>
+    <!-- 菜单项/标题图标随主题色:深色下浅色 -->
+    <color name="my_icon_tint">#E3E5E7</color>
+
+    <color name="windowBackground">@color/bili_bg_page</color>
+    <color name="bg_gray">@color/bili_divider</color>
+    <color name="bg_bottom_navigation">@color/bili_bg_card</color>
+    <color name="gray_darker">@color/bili_text_tertiary</color>
+    <color name="bg_popup">@color/bili_bg_card</color>
+    <color name="text_foreground">@color/bili_text_primary</color>
+    <color name="text_sub_foreground">@color/bili_text_secondary</color>
+    <color name="disable_text">@color/bili_arrow</color>
+    <color name="disable_gray">@color/bili_arrow</color>
+
+</resources>

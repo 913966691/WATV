@@ -21,6 +21,8 @@ import com.github.tvbox.osc.util.LOG;
 import com.github.tvbox.osc.util.OkGoHelper;
 import com.github.tvbox.osc.util.PlayerHelper;
 import com.github.tvbox.osc.util.Utils;
+import com.blankj.utilcode.util.ToastUtils;
+import androidx.core.content.ContextCompat;
 import com.kingja.loadsir.core.LoadSir;
 import com.orhanobut.hawk.Hawk;
 import com.p2p.P2PClass;
@@ -69,11 +71,13 @@ public class App extends MultiDexApplication {
         FileUtils.cleanPlayerCache();
         initCrashConfig();
         Utils.initTheme();
+        // Toast 统一为白底粉字,适配浅色主题(默认深色底在白底 App 里看不清)
+        ToastUtils.getDefaultMaker()
+                .setBgResource(R.drawable.bg_toast)
+                .setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.bili_pink))
+                .setTextSize(14);
         // 加载订阅源
         loadSubscriptions();
-
-        // 强制全局深色模式,必须在任何 Activity 创建之前完成。
-        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
     }
 
     private void initParams() {

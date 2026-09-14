@@ -29,10 +29,15 @@ public class LiveChannelGroupAdapter extends BaseQuickAdapter<LiveChannelGroup, 
         TextView tvGroupName = holder.getView(R.id.tvChannelGroupName);
         tvGroupName.setText(item.getGroupName());
         int groupIndex = item.getGroupIndex();
-        if (groupIndex == selectedGroupIndex && groupIndex != focusedGroupIndex) {
-            tvGroupName.setTextColor(mContext.getResources().getColor(R.color.color_1890FF));
-        } else {
+        if (groupIndex == focusedGroupIndex) {
+            // 聚焦态:背景为橙色块,白字更清晰
             tvGroupName.setTextColor(Color.WHITE);
+        } else if (groupIndex == selectedGroupIndex) {
+            // 选中态:浅色背景上用主题粉
+            tvGroupName.setTextColor(mContext.getResources().getColor(R.color.bili_pink));
+        } else {
+            // 默认态:浅色背景上用深色文字(原 Color.WHITE 在白底上看不清)
+            tvGroupName.setTextColor(mContext.getResources().getColor(R.color.text_foreground));
         }
     }
 

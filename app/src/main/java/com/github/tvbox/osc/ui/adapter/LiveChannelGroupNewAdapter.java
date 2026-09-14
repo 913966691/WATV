@@ -3,7 +3,8 @@ package com.github.tvbox.osc.ui.adapter;
 import android.view.View;
 import android.widget.TextView;
 
-import com.blankj.utilcode.util.ColorUtils;
+import androidx.core.content.ContextCompat;
+
 import com.chad.library.adapter.base.BaseQuickAdapter;
 import com.chad.library.adapter.base.BaseViewHolder;
 import com.github.tvbox.osc.R;
@@ -32,11 +33,17 @@ public class LiveChannelGroupNewAdapter extends BaseQuickAdapter<LiveChannelGrou
         tvGroupName.setText(item.getGroupName());
         int groupIndex = item.getGroupIndex();
         if (groupIndex == selectedGroupIndex && groupIndex != focusedGroupIndex) {
-            tvGroupName.setTextColor(mContext.getResources().getColor(R.color.white));
-            root.setBackground(mContext.getResources().getDrawable(R.drawable.bg_r_common_solid_primary));
+            // 选中态:粉底白字
+            tvGroupName.setTextColor(ContextCompat.getColor(mContext, R.color.white));
+            root.setBackground(ContextCompat.getDrawable(mContext, R.drawable.bg_r_common_solid_primary));
+        } else if (groupIndex == focusedGroupIndex) {
+            // 聚焦态:粉色背景上的白字
+            tvGroupName.setTextColor(ContextCompat.getColor(mContext, R.color.white));
+            root.setBackground(ContextCompat.getDrawable(mContext, R.drawable.shape_live_focus));
         } else {
-            tvGroupName.setTextColor(ColorUtils.getColor(R.color.text_foreground));
-            root.setBackground(mContext.getResources().getDrawable(R.drawable.bg_transparent));
+            // 默认态:浅色背景上的深色文字,确保可见
+            tvGroupName.setTextColor(ContextCompat.getColor(mContext, R.color.bili_text_primary));
+            root.setBackground(ContextCompat.getDrawable(mContext, R.drawable.bg_transparent));
         }
     }
 

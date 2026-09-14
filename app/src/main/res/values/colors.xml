@@ -5,7 +5,7 @@
     <!--应用的主要色调,actionBar默认使用该颜色,Toolbar导航栏的底色-->
     <color name="colorPrimary">@color/bili_pink</color>
     <!--CheckBox,RadioButton,SwitchCompat等一般控件的选中效果默认采用该颜色-->
-    <color name="colorAccent">@color/bili_blue</color>
+    <color name="colorAccent">@color/bili_pink</color>
     <!--    默认window窗口(activity)背景颜色-->
     <color name="windowBackground">@color/bili_bg_page</color>
 

@@ -1,6 +1,7 @@
 package com.github.tvbox.osc.ui.activity
 
 import android.content.Intent
+import android.graphics.Typeface
 import android.os.Process
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.adapter.FragmentStateAdapter
@@ -202,17 +203,21 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>() {
         val homeActive = tab == BottomTab.HOME
         nav.ivHome.setColorFilter(if (homeActive) selected else normal)
         nav.tvHome.setTextColor(if (homeActive) selected else normal)
+        nav.tvHome.setTypeface(null, if (homeActive) Typeface.BOLD else Typeface.NORMAL)
 
         // 我的 (ViewPager 第 1 页)
         val myActive = tab == BottomTab.MY
         nav.ivMy.setColorFilter(if (myActive) selected else normal)
         nav.tvMy.setTextColor(if (myActive) selected else normal)
+        nav.tvMy.setTypeface(null, if (myActive) Typeface.BOLD else Typeface.NORMAL)
 
         // 直播/订阅是跳转 Activity,永远保持未选中态
         nav.ivLive.setColorFilter(normal)
         nav.tvLive.setTextColor(normal)
+        nav.tvLive.setTypeface(null, Typeface.NORMAL)
         nav.ivSubscribe.setColorFilter(normal)
         nav.tvSubscribe.setTextColor(normal)
+        nav.tvSubscribe.setTypeface(null, Typeface.NORMAL)
 
         if (switchPage) {
             val targetPage = if (tab == BottomTab.MY) 1 else 0

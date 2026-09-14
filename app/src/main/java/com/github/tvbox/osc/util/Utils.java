@@ -112,18 +112,20 @@ public class Utils {
     }
 
     /**
- * 是否处于深色主题。
- * 主题已固定为深色,直接返回 true。下游调用方(statusBarDarkFont / XPopup 等)无需再判断。
- */
+     * 是否处于深色主题。
+     * 根据当前资源配置的 UI_MODE_NIGHT 标志判断,供 statusBarDarkFont / XPopup 等使用。
+     */
     public static boolean isDarkTheme(){
-        return true;
+        int nightModeFlags = App.getInstance().getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK;
+        return nightModeFlags == Configuration.UI_MODE_NIGHT_YES;
     }
 
     /**
-     * 主题初始化:仅深色一种,无视持久化值。
+     * 主题初始化:默认使用浅色模式,以匹配 B 站粉白主题。
      * 在 {@link com.github.tvbox.osc.base.App#onCreate()} 阶段必须先于任何 Activity 创建之前调用。
      */
     public static void initTheme(){
-        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
     }
 }

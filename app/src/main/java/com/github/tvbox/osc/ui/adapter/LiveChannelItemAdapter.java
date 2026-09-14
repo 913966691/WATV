@@ -30,13 +30,18 @@ public class LiveChannelItemAdapter extends BaseQuickAdapter<LiveChannelItem, Ba
         tvChannelNum.setText(String.format("%s", item.getChannelNum()));
         tvChannel.setText(item.getChannelName());
         int channelIndex = item.getChannelIndex();
-        if (channelIndex == selectedChannelIndex && channelIndex != focusedChannelIndex) {
-            tvChannelNum.setTextColor(mContext.getResources().getColor(R.color.color_1890FF));
-            tvChannel.setTextColor(mContext.getResources().getColor(R.color.color_1890FF));
-        }
-        else{
+        if (channelIndex == focusedChannelIndex) {
+            // 聚焦态:背景为蓝色块,白字更清晰
             tvChannelNum.setTextColor(Color.WHITE);
             tvChannel.setTextColor(Color.WHITE);
+        } else if (channelIndex == selectedChannelIndex) {
+            // 选中态:浅色背景上用主题粉
+            tvChannelNum.setTextColor(mContext.getResources().getColor(R.color.bili_pink));
+            tvChannel.setTextColor(mContext.getResources().getColor(R.color.bili_pink));
+        } else {
+            // 默认态:浅色背景上用深色文字(原 Color.WHITE 在白底上看不清)
+            tvChannelNum.setTextColor(mContext.getResources().getColor(R.color.text_foreground));
+            tvChannel.setTextColor(mContext.getResources().getColor(R.color.text_foreground));
         }
     }
 

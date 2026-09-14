@@ -2,7 +2,8 @@ package com.github.tvbox.osc.ui.adapter;
 
 import android.widget.TextView;
 
-import com.blankj.utilcode.util.ColorUtils;
+import androidx.core.content.ContextCompat;
+
 import com.chad.library.adapter.base.BaseQuickAdapter;
 import com.chad.library.adapter.base.BaseViewHolder;
 import com.github.tvbox.osc.R;
@@ -30,9 +31,14 @@ public class LiveSettingGroupAdapter extends BaseQuickAdapter<LiveSettingGroup, 
         tvGroupName.setText(group.getGroupName());
         int groupIndex = group.getGroupIndex();
         if (groupIndex == selectedGroupIndex && groupIndex != focusedGroupIndex) {
-            tvGroupName.setTextColor(mContext.getResources().getColor(R.color.color_1890FF));
+            // 选中态使用主题粉
+            tvGroupName.setTextColor(ContextCompat.getColor(mContext, R.color.bili_pink));
+        } else if (groupIndex == focusedGroupIndex) {
+            // 聚焦态:粉色背景上的白字(父布局 selector 会处理背景)
+            tvGroupName.setTextColor(ContextCompat.getColor(mContext, R.color.white));
         } else {
-            tvGroupName.setTextColor(ColorUtils.getColor(R.color.text_foreground));
+            // 默认态:深色文字,确保浅色背景可见
+            tvGroupName.setTextColor(ContextCompat.getColor(mContext, R.color.bili_text_primary));
         }
     }
 

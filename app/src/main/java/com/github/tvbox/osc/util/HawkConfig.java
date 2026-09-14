@@ -16,8 +16,6 @@ public class HawkConfig {
     public static final String HOME_API = "home_api";
     public static final String DEFAULT_PARSE = "parse_default";
     public static final String DEBUG_OPEN = "debug_open";
-    public static final String IJK_CODEC = "ijk_codec";
-    public static final String PLAY_TYPE = "play_type";//0 系统 1 ijk 2 exo 10 MXPlayer
     public static final String PLAY_RENDER = "play_render"; //0 texture 2
     public static final String PLAY_SCALE = "play_scale"; //0 texture 2
     public static final String PLAY_TIME_STEP = "play_time_step"; //0 texture 2
@@ -39,7 +37,6 @@ public class HawkConfig {
     public static final String SOURCES_FOR_SEARCH = "checked_sources_for_search";
     public static final String NOW_DATE = "now_date"; //当前日期
     public static final String REMOTE_TVBOX = "remote_tvbox_host";
-    public static final String IJK_CACHE_PLAY = "ijk_cache_play";
     /**
      * 无痕浏览
      */

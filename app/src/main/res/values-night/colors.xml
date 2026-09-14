@@ -3,6 +3,8 @@
 
     <!-- ===== B站风格设计令牌(夜间) ===== -->
     <color name="bili_pink">#FB7299</color>
+    <!-- 品牌粉 10% 透明,消息气泡背景/描边 -->
+    <color name="bili_pink_10">#1AFB7299</color>
     <color name="bili_blue">#00AEEC</color>
     <!-- 页面背景 -->
     <color name="bili_bg_page">#17181A</color>

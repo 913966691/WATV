@@ -11,6 +11,7 @@ import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -81,6 +82,7 @@ import java.text.SimpleDateFormat;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -171,6 +173,7 @@ public class LiveFragment extends Fragment implements LiveHost {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        sInstance = new WeakReference<>(this);
         epgStringAddress = Hawk.get(HawkConfig.EPG_URL, "");
         if (epgStringAddress == null || epgStringAddress.length() < 5)
             epgStringAddress = "http://epg.51zmt.top:8000/api/diyp/";
@@ -311,25 +314,107 @@ public class LiveFragment extends Fragment implements LiveHost {
         return true;
     }
 
+    // 直播页不可见时已彻底释放播放器,回到该页需要重新起播
+    private boolean liveReleased = false;
+    /** 由 MainActivity 的 tab 切换显式驱动的可见状态,是起播的唯一依据 */
+    private boolean pageVisible = false;
+    private static WeakReference<LiveFragment> sInstance = null;
+    /** 直播可见性诊断日志,复现"切走后仍在播"问题时抓 logcat 用 */
+    private static final String TAG_LIVEVIS = "LiveVis";
+
+    /**
+     * 唯一的"起播"任务,只有它允许被延迟和取消。
+     *
+     * 停播(释放)一律同步执行、绝不进消息队列:快速切 tab 时每次切换都会先
+     * removeCallbacks,排队的释放任务会被后一次切换取消掉,直播就一直占着
+     * 解码器,随后打开的点播拿不到 MediaCodec 实例而起播失败。
+     */
+    private final Runnable mStartRun = new Runnable() {
+        @Override
+        public void run() {
+            if (pageVisible) applyPageVisible(true);
+        }
+    };
+
     @Override
     public void onResume() {
         super.onResume();
-        if (mVideoView != null) {
-            mVideoView.resume();
-        }
+        // 故意不在这里起播:ViewPager2 连续快速切页时 onResume 会滞后触发,
+        // 会把"已经切走"的直播又拉起来。起播一律由 MainActivity.selectTab 显式驱动。
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        if (mVideoView != null) {
-            mVideoView.pause();
+        // 按 Home / 打开点播播放页:强制同步停播
+        setPageVisible(false);
+    }
+
+    /**
+     * 直播页可见性切换,由 MainActivity 的 tab 切换回调驱动。
+     *
+     * 不能只依赖生命周期回调:ViewPager2 连续/快速切页时 fragment 的 lifecycle 更新会滞后甚至丢失,
+     * 直播就会在后台继续播放;更要命的是只 pause() 不 release() 会一直占用 MediaCodec 实例,
+     * 导致随后打开的点播拿不到解码器而起播失败。
+     */
+    public void setPageVisible(boolean visible) {
+        pageVisible = visible;
+        mHandler.removeCallbacks(mStartRun);
+        if (visible) {
+            mHandler.postDelayed(mStartRun, 300); // 快速滑过直播页时不必起播
+        } else {
+            applyPageVisible(false);              // 同步释放,不可被取消
         }
+        Log.d(TAG_LIVEVIS, "setPageVisible " + visible + " liveReleased=" + liveReleased);
+    }
+
+    public static void stopLivePlayback() {
+        LiveFragment fragment = sInstance != null ? sInstance.get() : null;
+        if (fragment != null) {
+            fragment.setPageVisible(false); // 同步释放,保证点播起播前解码器已空出来
+        }
+    }
+
+    private void applyPageVisible(boolean visible) {
+        if (mVideoView == null) return;
+        if (visible) {
+            // liveReleased 由 restartCurrentChannel 自己维护:起播成功才置 false
+            if (liveReleased) {
+                Log.d(TAG_LIVEVIS, "applyPageVisible true -> restart channel");
+                restartCurrentChannel();
+            } else {
+                Log.d(TAG_LIVEVIS, "applyPageVisible true -> resume");
+                mVideoView.resume();
+            }
+        } else {
+            if (!liveReleased) {
+                Log.d(TAG_LIVEVIS, "applyPageVisible false -> release");
+                mVideoView.release();
+                liveReleased = true;
+            }
+        }
+    }
+
+    /**
+     * 播放器被释放后重新起播当前频道
+     */
+    private void restartCurrentChannel() {
+        if (mVideoView == null) return;
+        if (currentLiveChannelItem == null || currentChannelGroupIndex < 0 || currentLiveChannelIndex < 0) {
+            // 频道列表还没加载完就被切走了(它的回调会检查 pageVisible,不会偷偷起播)
+            return;
+        }
+        livePlayerManager.getDefaultLiveChannelPlayer(mVideoView);
+        int groupIndex = currentChannelGroupIndex;
+        int channelIndex = currentLiveChannelIndex;
+        currentLiveChannelIndex = -1; // 绕过 playChannel 中"同一频道"的短路判断
+        playChannel(groupIndex, channelIndex, false);
     }
 
     @Override
     public void onDestroyView() {
         mHandler.removeCallbacksAndMessages(null);
+        if (sInstance != null && sInstance.get() == this) sInstance = null;
         if (mVideoView != null) {
             mVideoView.release();
             mVideoView = null;
@@ -390,6 +475,7 @@ public class LiveFragment extends Fragment implements LiveHost {
             return true;
         }
         mVideoView.release();
+        liveReleased = true;
         if (!changeSource) {
             currentChannelGroupIndex = channelGroupIndex;
             currentLiveChannelIndex = liveChannelIndex;
@@ -408,8 +494,17 @@ public class LiveFragment extends Fragment implements LiveHost {
         }
         showBottomEpg();
 
+        // 关键闸门:快速切 tab 时,频道列表的异步加载回调往往在"已经切走"之后才到达,
+        // 这里必须挡一道 —— 页面不可见时只更新选中状态,绝不真正起播,
+        // 否则直播会在别的 tab 后台出声并占住解码器,点播随后起播失败。
+        if (!pageVisible) {
+            Log.d(TAG_LIVEVIS, "playChannel blocked: page not visible");
+            return true;
+        }
+
         mVideoView.setUrl(currentLiveChannelItem.getUrl());
         mVideoView.start();
+        liveReleased = false;
         return true;
     }
 
@@ -901,7 +996,7 @@ public class LiveFragment extends Fragment implements LiveHost {
         ArrayList<ArrayList<String>> itemsArrayList = new ArrayList<>();
         ArrayList<String> sourceItems = new ArrayList<>();
         ArrayList<String> scaleItems = new ArrayList<>(Arrays.asList("默认", "16:9", "4:3", "填充", "原始", "裁剪"));
-        ArrayList<String> playerDecoderItems = new ArrayList<>(Arrays.asList("系统", "ijk硬解", "ijk软解", "exo"));
+        ArrayList<String> playerDecoderItems = new ArrayList<>(Arrays.asList("exo"));
         ArrayList<String> timeoutItems = new ArrayList<>(Arrays.asList("5s", "10s", "15s", "20s", "25s", "30s"));
         ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类"));
         itemsArrayList.add(sourceItems);

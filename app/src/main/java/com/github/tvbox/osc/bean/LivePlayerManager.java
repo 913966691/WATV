@@ -22,8 +22,7 @@ public class LivePlayerManager {
 
     public void init(VideoView videoView) {
         try {
-            defaultPlayerConfig.put("pl", Hawk.get(HawkConfig.PLAY_TYPE, 2)); // 默认 ExoPlayer
-            defaultPlayerConfig.put("ijk", Hawk.get(HawkConfig.IJK_CODEC, "软解码"));
+            defaultPlayerConfig.put("pl", 2); // 固定 ExoPlayer
             defaultPlayerConfig.put("pr", Hawk.get(HawkConfig.PLAY_RENDER, 0));
             defaultPlayerConfig.put("sc", Hawk.get(HawkConfig.PLAY_SCALE, 0));
         } catch (JSONException e) {
@@ -53,8 +52,7 @@ public class LivePlayerManager {
 
         try {
             if (playerConfig.getInt("pl") == currentPlayerConfig.getInt("pl")
-                    && playerConfig.getInt("pr") == currentPlayerConfig.getInt("pr")
-                    && playerConfig.getString("ijk").equals(currentPlayerConfig.getString("ijk"))) {
+                    && playerConfig.getInt("pr") == currentPlayerConfig.getInt("pr")) {
                 videoView.setScreenScaleType(playerConfig.getInt("sc"));
             } else {
                 PlayerHelper.updateCfg(videoView, playerConfig);
@@ -67,28 +65,7 @@ public class LivePlayerManager {
     }
 
     public int getLivePlayerType() {
-        int playerTypeIndex = 0;
-        try {
-            int playerType = currentPlayerConfig.getInt("pl");
-            String ijkCodec = currentPlayerConfig.getString("ijk");
-            switch (playerType) {
-                case 0:
-                    playerTypeIndex = 0;
-                    break;
-                case 1:
-                    if (ijkCodec.equals("硬解码"))
-                        playerTypeIndex = 1;
-                    else
-                        playerTypeIndex = 2;
-                    break;
-                case 2:
-                    playerTypeIndex = 3;
-                    break;
-            }
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        return playerTypeIndex;
+        return 0; // 固定 ExoPlayer
     }
 
     public int getLivePlayerScale() {
@@ -101,37 +78,7 @@ public class LivePlayerManager {
     }
 
     public void changeLivePlayerType(VideoView videoView, int playerType, String channelName) {
-        JSONObject playerConfig = currentPlayerConfig;
-        try {
-            switch (playerType) {
-                case 0:
-                    playerConfig.put("pl", 0);
-                    playerConfig.put("ijk", "软解码");
-                    break;
-                case 1:
-                    playerConfig.put("pl", 1);
-                    playerConfig.put("ijk", "硬解码");
-                    break;
-                case 2:
-                    playerConfig.put("pl", 1);
-                    playerConfig.put("ijk", "软解码");
-                    break;
-                case 3:
-                    playerConfig.put("pl", 2);
-                    playerConfig.put("ijk", "软解码");
-                    break;
-            }
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        PlayerHelper.updateCfg(videoView, playerConfig);
-
-        if (playerConfig.toString().equals(defaultPlayerConfig.toString()))
-            Hawk.delete(channelName);
-        else
-            Hawk.put(channelName, playerConfig);
-
-        currentPlayerConfig = playerConfig;
+        // 已固定 ExoPlayer，无需切换
     }
 
     public void changeLivePlayerScale(@NonNull VideoView videoView, int playerScale, String channelName){

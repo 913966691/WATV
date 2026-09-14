@@ -128,6 +128,19 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
         openDestination(intent.getIntExtra(EXTRA_START_DESTINATION, R.id.navigation_home))
     }
 
+    override fun onPause() {
+        super.onPause()
+        // 离开主界面(最常见的就是打开点播播放页):彻底停掉直播并释放解码器。
+        // 这是最直接的一层兜底 —— 只要 MainActivity 进后台,直播就不允许再占着 MediaCodec。
+        (fragments[1] as? LiveFragment)?.setPageVisible(false)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 回到主界面:只有当前 tab 确实是直播才恢复(带 300ms 去抖)
+        (fragments[1] as? LiveFragment)?.setPageVisible(currentTab == BottomTab.LIVE)
+    }
+
     private fun openDestination(destination: Int) {
         when (destination) {
             R.id.navigation_dashboard -> selectTab(BottomTab.MY)
@@ -208,6 +221,12 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
      */
     private fun selectTab(tab: BottomTab, switchPage: Boolean = true) {
         currentTab = tab
+
+        // 直播页:一旦不是当前页就彻底停播并释放解码器。
+        // 不能只靠 fragment 的 onPause —— ViewPager2 连续切换时 fragment lifecycle 更新会滞后/丢失,
+        // 会出现"在别的 tab 还听得到直播声音",且解码器被占住导致点播起播失败。
+        (fragments[1] as? LiveFragment)?.setPageVisible(tab == BottomTab.LIVE)
+
         val nav = mBinding.bottomNavRoot
         val selected = androidx.core.content.ContextCompat.getColor(
             this, R.color.bili_pink)

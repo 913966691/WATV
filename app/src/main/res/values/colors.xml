@@ -12,6 +12,8 @@
     <!-- ===== B站风格设计令牌 ===== -->
     <!-- 品牌粉,主色/选中态 -->
     <color name="bili_pink">#FB7299</color>
+    <!-- 品牌粉 10% 透明,消息气泡背景/描边 -->
+    <color name="bili_pink_10">#1AFB7299</color>
     <!-- 品牌蓝,链接/站点名 -->
     <color name="bili_blue">#00AEEC</color>
     <!-- 页面背景 -->

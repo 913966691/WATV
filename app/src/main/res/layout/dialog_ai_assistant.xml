@@ -20,7 +20,7 @@
             android:id="@+id/iv_close"
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:src="@drawable/ic_close"
+            android:src="@drawable/ic_close_24"
             app:tint="@color/bili_text_primary" />
 
         <TextView

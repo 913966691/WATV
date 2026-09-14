@@ -49,12 +49,9 @@ public class PlayingControlRightDialog extends DrawerPopupView {
         mBinding.scale.setText(mController.mPlayerScaleBtn.getText());
         mBinding.playTimeStart.setText(mController.mPlayerTimeStartBtn.getText());
         mBinding.playTimeEnd.setText(mController.mPlayerTimeSkipBtn.getText());
-        mBinding.player.setText(mController.mPlayerBtn.getText());
-        mBinding.decode.setText(mController.mPlayerIJKBtn.getText());
         //全屏的设置弹窗显示
         mBinding.landscapePortrait.setVisibility(View.VISIBLE);
         mBinding.download.setVisibility(View.VISIBLE);
-        updateAboutIjkVisible();
         updateSpeedUi();
     }
 
@@ -97,8 +94,6 @@ public class PlayingControlRightDialog extends DrawerPopupView {
             mController.decreaseTime("et");
             updateSkipText(false);
         });
-        mBinding.player.setOnClickListener(view -> changeAndUpdateText(mBinding.player,mController.mPlayerBtn));
-        mBinding.decode.setOnClickListener(view -> changeAndUpdateText(mBinding.decode,mController.mPlayerIJKBtn));
 
         //其他
         mBinding.landscapePortrait.setOnClickListener(view -> dismissWith(() ->changeAndUpdateText(null,mController.mLandscapePortraitBtn)));
@@ -127,9 +122,6 @@ public class PlayingControlRightDialog extends DrawerPopupView {
         targetView.performClick();
         if (view!=null){
             view.setText(targetView.getText());
-            if (view == mBinding.player){
-                updateAboutIjkVisible();
-            }
        }
     }
 
@@ -149,13 +141,6 @@ public class PlayingControlRightDialog extends DrawerPopupView {
                 tv.setTextColor(ColorUtils.getColor(R.color.bili_text_secondary));
             }
         }
-    }
-
-    /**
-     * 如切换/使用的是ijk,解码和音轨按钮才显示
-     */
-    public void updateAboutIjkVisible(){
-        mBinding.decode.setVisibility(mController.mPlayerIJKBtn.getVisibility());
     }
 
     /**

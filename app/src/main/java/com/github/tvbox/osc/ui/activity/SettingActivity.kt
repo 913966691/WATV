@@ -5,12 +5,10 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.View
-import androidx.recyclerview.widget.DiffUtil
 import com.blankj.utilcode.util.ToastUtils
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.base.BaseVbActivity
-import com.github.tvbox.osc.bean.IJKCode
 import com.github.tvbox.osc.constant.IntentKey
 import com.github.tvbox.osc.databinding.ActivitySettingBinding
 import com.github.tvbox.osc.ui.adapter.SelectDialogAdapter
@@ -30,8 +28,8 @@ import com.hjq.permissions.Permission
 import com.hjq.permissions.XXPermissions
 import com.lxj.xpopup.XPopup
 import com.orhanobut.hawk.Hawk
+import androidx.recyclerview.widget.DiffUtil
 import okhttp3.HttpUrl
-import tv.danmaku.ijk.media.player.IjkMediaPlayer
 import java.io.File
 
 /**
@@ -51,14 +49,12 @@ class SettingActivity : BaseVbActivity<ActivitySettingBinding>() {
     override fun init() {
 
         mBinding.titleBar.leftView.setOnClickListener { onBackPressed() }
-        mBinding.tvMediaCodec.text = Hawk.get(HawkConfig.IJK_CODEC, "")
 
         mBinding.tvDns.text = OkGoHelper.dnsHttpsList[Hawk.get(HawkConfig.DOH_URL, 0)]
         mBinding.tvHomeRec.text = getHomeRecName(Hawk.get(HawkConfig.HOME_REC, 0))
         mBinding.tvHistoryNum.text =
             HistoryHelper.getHistoryNumName(Hawk.get(HawkConfig.HISTORY_NUM, 0))
         mBinding.tvScaleType.text = PlayerHelper.getScaleName(Hawk.get(HawkConfig.PLAY_SCALE, 0))
-        mBinding.tvPlay.text = PlayerHelper.getPlayerName(Hawk.get(HawkConfig.PLAY_TYPE, 2))
         mBinding.tvRenderType.text =
             PlayerHelper.getRenderName(Hawk.get(HawkConfig.PLAY_RENDER, 0))
 
@@ -176,48 +172,12 @@ class SettingActivity : BaseVbActivity<ActivitySettingBinding>() {
                     Hawk.put(HawkConfig.DOH_URL, pos)
                     val url = OkGoHelper.getDohUrl(pos)
                     OkGoHelper.dnsOverHttps.setUrl(if (url.isEmpty()) null else HttpUrl.get(url))
-                    IjkMediaPlayer.toggleDotPort(pos > 0)
                 }
 
                 override fun getDisplay(name: String?): String {
                     return name ?: ""
                 }
             },SelectDialogAdapter.stringDiff, OkGoHelper.dnsHttpsList, dohUrl)
-            dialog.show()
-        }
-
-        mBinding.llMediaCodec.setOnClickListener { v: View? ->
-            val ijkCodes = ApiConfig.get().ijkCodes
-            if (ijkCodes == null || ijkCodes.size == 0) return@setOnClickListener
-            FastClickCheckUtil.check(v)
-            var defaultPos = 0
-            val ijkSel = Hawk.get(HawkConfig.IJK_CODEC, "")
-            for (j in ijkCodes.indices) {
-                if (ijkSel == ijkCodes[j].name) {
-                    defaultPos = j
-                    break
-                }
-            }
-            val dialog = SelectDialog<IJKCode>(this@SettingActivity)
-            dialog.setTip("请选择IJK解码")
-            dialog.setAdapter(object : SelectDialogInterface<IJKCode?> {
-                override fun click(value: IJKCode?, pos: Int) {
-                    value?.selected(true)
-                    mBinding.tvMediaCodec.text = value?.name
-                }
-
-                override fun getDisplay(code: IJKCode?): String {
-                    return code?.name ?: ""
-                }
-            }, object : DiffUtil.ItemCallback<IJKCode>() {
-                override fun areItemsTheSame(oldItem: IJKCode, newItem: IJKCode): Boolean {
-                    return oldItem === newItem
-                }
-
-                override fun areContentsTheSame(oldItem: IJKCode, newItem: IJKCode): Boolean {
-                    return oldItem.name.contentEquals(newItem.name)
-                }
-            }, ijkCodes, defaultPos)
             dialog.show()
         }
 
@@ -251,43 +211,6 @@ class SettingActivity : BaseVbActivity<ActivitySettingBinding>() {
                     return oldItem == newItem
                 }
             }, players, defaultPos)
-            dialog.show()
-        }
-
-        mBinding.llPlay.setOnClickListener { v: View? ->
-            FastClickCheckUtil.check(v)
-            val playerType = Hawk.get(HawkConfig.PLAY_TYPE, 2) // 默认 ExoPlayer
-            var defaultPos = 0
-            val players = PlayerHelper.getExistPlayerTypes()
-            val renders = ArrayList<Int>()
-            for (p in players.indices) {
-                renders.add(p)
-                if (players[p] == playerType) {
-                    defaultPos = p
-                }
-            }
-            val dialog = SelectDialog<Int>(this@SettingActivity)
-            dialog.setTip("请选择默认播放器")
-            dialog.setAdapter(object : SelectDialogInterface<Int?> {
-                override fun click(value: Int?, pos: Int) {
-                    val thisPlayerType = players[pos]
-                    Hawk.put(HawkConfig.PLAY_TYPE, thisPlayerType)
-                    mBinding.tvPlay.text = PlayerHelper.getPlayerName(thisPlayerType)
-                    PlayerHelper.init()
-                }
-
-                override fun getDisplay(value: Int?): String {
-                    return PlayerHelper.getPlayerName(players[value?:0])
-                }
-            }, object : DiffUtil.ItemCallback<Int>() {
-                override fun areItemsTheSame(oldItem: Int, newItem: Int): Boolean {
-                    return oldItem == newItem
-                }
-
-                override fun areContentsTheSame(oldItem: Int, newItem: Int): Boolean {
-                    return oldItem == newItem
-                }
-            }, renders, defaultPos)
             dialog.show()
         }
 
@@ -393,13 +316,6 @@ class SettingActivity : BaseVbActivity<ActivitySettingBinding>() {
             val newConfig = !Hawk.get(HawkConfig.VIDEO_PURIFY, true)
             mBinding.switchVideoPurify.setChecked(newConfig)
             Hawk.put(HawkConfig.VIDEO_PURIFY, newConfig)
-        }
-        mBinding.switchIjkCachePlay.setChecked(Hawk.get(HawkConfig.IJK_CACHE_PLAY, false))
-        mBinding.llIjkCachePlay.setOnClickListener { v: View? ->
-            FastClickCheckUtil.check(v)
-            val newConfig = !Hawk.get(HawkConfig.IJK_CACHE_PLAY, false)
-            mBinding.switchIjkCachePlay.setChecked(newConfig)
-            Hawk.put(HawkConfig.IJK_CACHE_PLAY, newConfig)
         }
     }
 

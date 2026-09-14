@@ -4,8 +4,6 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonArray
 import okhttp3.*
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -24,7 +22,7 @@ class LlmClient {
     private val gson = Gson()
     
     // 媒体类型
-    private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+    private val JSON_MEDIA_TYPE = MediaType.parse("application/json; charset=utf-8")!!
     
     /**
      * 发送对话请求（带Function Calling支持）
@@ -52,7 +50,7 @@ class LlmClient {
                 .url(apiUrl)
                 .addHeader("Authorization", "Bearer $apiKey")
                 .addHeader("Content-Type", "application/json")
-                .post(requestBody.toRequestBody(JSON_MEDIA_TYPE))
+                .post(RequestBody.create(JSON_MEDIA_TYPE, requestBody))
                 .build()
             
             client.newCall(request).enqueue(object : Callback {
@@ -63,12 +61,12 @@ class LlmClient {
                 override fun onResponse(call: Call, response: Response) {
                     response.use { resp ->
                         if (!resp.isSuccessful) {
-                            val errorBody = resp.body?.string() ?: "未知错误"
-                            callback.onError("API错误(${resp.code}): $errorBody")
+                            val errorBody = resp.body()?.string() ?: "未知错误"
+                            callback.onError("API错误(${resp.code()}): $errorBody")
                             return
                         }
                         
-                        val responseBody = resp.body?.string()
+                        val responseBody = resp.body()?.string()
                         if (responseBody.isNullOrBlank()) {
                             callback.onError("响应为空")
                             return

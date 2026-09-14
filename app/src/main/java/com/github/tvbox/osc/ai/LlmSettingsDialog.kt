@@ -2,6 +2,7 @@ package com.github.tvbox.osc.ai
 
 import android.content.Context
 import android.view.LayoutInflater
+import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.LinearLayout

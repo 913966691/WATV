@@ -48,9 +48,6 @@ public class PlayingControlDialog extends BottomPopupView {
         mBinding.scale.setText(mController.mPlayerScaleBtn.getText());
         mBinding.playTimeStart.setText(mController.mPlayerTimeStartBtn.getText());
         mBinding.playTimeEnd.setText(mController.mPlayerTimeSkipBtn.getText());
-        mBinding.player.setText(mController.mPlayerBtn.getText());
-        mBinding.decode.setText(mController.mPlayerIJKBtn.getText());
-        updateAboutIjkVisible();
         updateSpeedUi();
     }
 
@@ -93,8 +90,6 @@ public class PlayingControlDialog extends BottomPopupView {
             mController.decreaseTime("et");
             updateSkipText(false);
         });
-        mBinding.player.setOnClickListener(view -> changeAndUpdateText(mBinding.player,mController.mPlayerBtn));
-        mBinding.decode.setOnClickListener(view -> changeAndUpdateText(mBinding.decode,mController.mPlayerIJKBtn));
 
         //其他
         mBinding.startEndReset.setOnClickListener(view -> resetSkipStartEnd());
@@ -121,9 +116,6 @@ public class PlayingControlDialog extends BottomPopupView {
         targetView.performClick();
         if (view!=null){
             view.setText(targetView.getText());
-            if (view == mBinding.player){
-                updateAboutIjkVisible();
-            }
         }
     }
 
@@ -143,13 +135,6 @@ public class PlayingControlDialog extends BottomPopupView {
                 tv.setTextColor(ColorUtils.getColor(R.color.bili_text_secondary));
             }
         }
-    }
-
-    /**
-     * 如切换/使用的是ijk,解码和音轨按钮才显示
-     */
-    public void updateAboutIjkVisible(){
-        mBinding.decode.setVisibility(mController.mPlayerIJKBtn.getVisibility());
     }
 
     /**

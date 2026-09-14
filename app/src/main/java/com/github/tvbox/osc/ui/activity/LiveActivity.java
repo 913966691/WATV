@@ -351,11 +351,19 @@ public class LiveActivity extends BaseActivity implements LiveHost {
         return super.dispatchKeyEvent(event);
     }
 
+    // 直播页不可见时已彻底释放播放器,回到该页需要重新起播
+    private boolean liveReleased = false;
+
     @Override
     protected void onResume() {
         super.onResume();
         if (mVideoView != null) {
-            mVideoView.resume();
+            if (liveReleased) {
+                liveReleased = false;
+                restartCurrentChannel();
+            } else {
+                mVideoView.resume();
+            }
         }
     }
 
@@ -363,9 +371,25 @@ public class LiveActivity extends BaseActivity implements LiveHost {
     @Override
     protected void onPause() {
         super.onPause();
+        // 离开直播页必须彻底停播并释放解码器/AudioTrack。
+        // 只 pause() 会继续占用 MediaCodec 实例,随后打开的点播会因拿不到解码器而起播失败。
         if (mVideoView != null) {
-            mVideoView.pause();
+            mVideoView.release();
+            liveReleased = true;
         }
+    }
+
+    /**
+     * 播放器被释放后重新起播当前频道
+     */
+    private void restartCurrentChannel() {
+        if (mVideoView == null || currentLiveChannelItem == null) return;
+        int groupIndex = currentChannelGroupIndex;
+        int channelIndex = currentLiveChannelIndex;
+        if (groupIndex < 0 || channelIndex < 0) return;
+        livePlayerManager.getDefaultLiveChannelPlayer(mVideoView);
+        currentLiveChannelIndex = -1; // 绕过 playChannel 中"同一频道"的短路判断
+        playChannel(groupIndex, channelIndex, false);
     }
 
     @Override
@@ -961,7 +985,7 @@ public class LiveActivity extends BaseActivity implements LiveHost {
         ArrayList<ArrayList<String>> itemsArrayList = new ArrayList<>();
         ArrayList<String> sourceItems = new ArrayList<>();
         ArrayList<String> scaleItems = new ArrayList<>(Arrays.asList("默认", "16:9", "4:3", "填充", "原始", "裁剪"));
-        ArrayList<String> playerDecoderItems = new ArrayList<>(Arrays.asList("系统", "ijk硬解", "ijk软解", "exo"));
+        ArrayList<String> playerDecoderItems = new ArrayList<>(Arrays.asList("exo"));
         ArrayList<String> timeoutItems = new ArrayList<>(Arrays.asList("5s", "10s", "15s", "20s", "25s", "30s"));
         ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类"));
         itemsArrayList.add(sourceItems);

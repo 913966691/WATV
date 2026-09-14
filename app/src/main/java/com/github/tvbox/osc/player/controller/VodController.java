@@ -17,12 +17,9 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
-import androidx.recyclerview.widget.DiffUtil;
-
 import com.blankj.utilcode.util.ToastUtils;
 import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.api.ApiConfig;
-import com.github.tvbox.osc.bean.IJKCode;
 import com.github.tvbox.osc.bean.ParseBean;
 import com.github.tvbox.osc.event.RefreshEvent;
 import com.github.tvbox.osc.subtitle.widget.SimpleSubtitleView;
@@ -131,8 +128,6 @@ public class VodController extends BaseController {
     ImageView mPreBtn;
     public TextView mPlayerScaleBtn;
     public TextView mPlayerSpeedBtn;
-    public TextView mPlayerBtn;
-    public TextView mPlayerIJKBtn;
     public TextView mPlayerTimeStartEndText;
     public TextView mPlayerTimeStartBtn;
     public TextView mPlayerTimeSkipBtn;
@@ -215,8 +210,6 @@ public class VodController extends BaseController {
         mPreBtn = findViewById(R.id.play_pre);
         mPlayerScaleBtn = findViewById(R.id.play_scale);
         mPlayerSpeedBtn = findViewById(R.id.play_speed);
-        mPlayerBtn = findViewById(R.id.play_player);
-        mPlayerIJKBtn = findViewById(R.id.play_ijk);
         mPlayerTimeStartEndText = findViewById(R.id.play_time_start_end_text);
         mPlayerTimeStartBtn = findViewById(R.id.play_time_start);
         mPlayerTimeSkipBtn = findViewById(R.id.play_time_end);
@@ -410,122 +403,6 @@ public class VodController extends BaseController {
             }
             return true;
         });
-        mPlayerBtn.setOnClickListener(view -> {
-            myHandle.removeCallbacks(myRunnable);
-            myHandle.postDelayed(myRunnable, dismissTimeOperationBar);
-            try {
-                int playerType = mPlayerConfig.getInt("pl");
-                ArrayList<Integer> exsitPlayerTypes = PlayerHelper.getExistPlayerTypes();
-                int playerTypeIdx = 0;
-                int playerTypeSize = exsitPlayerTypes.size();
-                for (int i = 0; i < playerTypeSize; i++) {
-                    if (playerType == exsitPlayerTypes.get(i)) {
-                        if (i == playerTypeSize - 1) {
-                            playerTypeIdx = 0;
-                        } else {
-                            playerTypeIdx = i + 1;
-                        }
-                    }
-                }
-                playerType = exsitPlayerTypes.get(playerTypeIdx);
-                mPlayerConfig.put("pl", playerType);
-                updatePlayerCfgView();
-                listener.updatePlayerCfg();
-                listener.replay(false);
-                hideBottom();
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-            mPlayerBtn.requestFocus();
-            mPlayerBtn.requestFocusFromTouch();
-        });
-
-        mPlayerBtn.setOnLongClickListener(view -> {
-            myHandle.removeCallbacks(myRunnable);
-            myHandle.postDelayed(myRunnable, dismissTimeOperationBar);
-            FastClickCheckUtil.check(view);
-            try {
-                int playerType = mPlayerConfig.getInt("pl");
-                int defaultPos = 0;
-                ArrayList<Integer> players = PlayerHelper.getExistPlayerTypes();
-                ArrayList<Integer> renders = new ArrayList<>();
-                for (int p = 0; p < players.size(); p++) {
-                    renders.add(p);
-                    if (players.get(p) == playerType) {
-                        defaultPos = p;
-                    }
-                }
-                SelectDialog<Integer> dialog = new SelectDialog<>(mActivity);
-                dialog.setTip("请选择播放器");
-                dialog.setAdapter(new SelectDialogAdapter.SelectDialogInterface<Integer>() {
-                    @Override
-                    public void click(Integer value, int pos) {
-                        try {
-                            dialog.cancel();
-                            int thisPlayType = players.get(pos);
-                            if (thisPlayType != playerType) {
-                                mPlayerConfig.put("pl", thisPlayType);
-                                updatePlayerCfgView();
-                                listener.updatePlayerCfg();
-                                listener.replay(false);
-                                hideBottom();
-                            }
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                        mPlayerBtn.requestFocus();
-                        mPlayerBtn.requestFocusFromTouch();
-                    }
-
-                    @Override
-                    public String getDisplay(Integer val) {
-                        Integer playerType = players.get(val);
-                        return PlayerHelper.getPlayerName(playerType);
-                    }
-                }, new DiffUtil.ItemCallback<Integer>() {
-                    @Override
-                    public boolean areItemsTheSame(@NonNull @NotNull Integer oldItem, @NonNull @NotNull Integer newItem) {
-                        return oldItem.intValue() == newItem.intValue();
-                    }
-
-                    @Override
-                    public boolean areContentsTheSame(@NonNull @NotNull Integer oldItem, @NonNull @NotNull Integer newItem) {
-                        return oldItem.intValue() == newItem.intValue();
-                    }
-                }, renders, defaultPos);
-                dialog.show();
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-            return true;
-        });
-        mPlayerIJKBtn.setOnClickListener(view -> {
-            myHandle.removeCallbacks(myRunnable);
-            myHandle.postDelayed(myRunnable, dismissTimeOperationBar);
-            try {
-                String ijk = mPlayerConfig.getString("ijk");
-                List<IJKCode> codecs = ApiConfig.get().getIjkCodes();
-                for (int i = 0; i < codecs.size(); i++) {
-                    if (ijk.equals(codecs.get(i).getName())) {
-                        if (i >= codecs.size() - 1)
-                            ijk = codecs.get(0).getName();
-                        else {
-                            ijk = codecs.get(i + 1).getName();
-                        }
-                        break;
-                    }
-                }
-                mPlayerConfig.put("ijk", ijk);
-                updatePlayerCfgView();
-                listener.updatePlayerCfg();
-                listener.replay(false);
-                hideBottom();
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-            mPlayerIJKBtn.requestFocus();
-            mPlayerIJKBtn.requestFocusFromTouch();
-        });
 //        增加播放页面片头片尾时间重置
         mPlayerTimeResetBtn.setOnClickListener(v -> {
             myHandle.removeCallbacks(myRunnable);
@@ -715,11 +592,6 @@ public class VodController extends BaseController {
 
     void updatePlayerCfgView() {
         try {
-            int playerType = mPlayerConfig.getInt("pl");
-            mPlayerBtn.setText(PlayerHelper.getPlayerName(playerType));
-            mPlayerScaleBtn.setText(PlayerHelper.getScaleName(mPlayerConfig.getInt("sc")));
-            mPlayerIJKBtn.setText(mPlayerConfig.getString("ijk"));
-            mPlayerIJKBtn.setVisibility(playerType == 1 ? VISIBLE : GONE);
             mPlayerScaleBtn.setText(PlayerHelper.getScaleName(mPlayerConfig.getInt("sc")));
             mPlayerSpeedBtn.setText("x" + mPlayerConfig.getDouble("sp"));
             mPlayerTimeStartBtn.setText(PlayerUtils.stringForTime(mPlayerConfig.getInt("st") * 1000));

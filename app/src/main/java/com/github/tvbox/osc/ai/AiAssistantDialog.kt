@@ -1,6 +1,8 @@
 package com.github.tvbox.osc.ai
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -122,7 +124,7 @@ class AiAssistantDialog(context: Context) : BaseDialog(context) {
         
         // TODO: 实际调用engine处理
         // 这里先用模拟回复
-        postDelayed({
+        Handler(Looper.getMainLooper()).postDelayed({
             showLoading(false)
             messageAdapter.addMessage(MessageItem(
                 role = MessageRole.ASSISTANT,

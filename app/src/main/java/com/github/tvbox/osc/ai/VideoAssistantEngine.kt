@@ -6,7 +6,6 @@ import com.github.tvbox.osc.cache.RoomDataManger
 import com.github.tvbox.osc.bean.VodInfo
 import com.github.tvbox.osc.ui.activity.DetailActivity
 import com.github.tvbox.osc.ui.activity.MainActivity
-import com.github.tvbox.osc.util.SourceUtil
 import com.orhanobut.hawk.Hawk
 import kotlinx.coroutines.*
 import java.util.*
@@ -241,12 +240,12 @@ class VideoAssistantEngine(private val activity: MainActivity) {
                 val keyword = arguments["keyword"] as? String ?: return@withContext """{"error": "缺少keyword参数"}"""
                 val type = arguments["type"] as? String ?: "all"
                 
-                // 获取所有可用源
-                val sources = SourceUtil.getSearchSources()
-                if (sources.isEmpty()) {
-                    return@withContext """{"error": "没有可用的搜索源"}"""
-                }
-                
+                // 搜索逻辑待接入 SourceViewModel（Phase 2），此处先返回提示
+                // val sources = ApiConfig.get().getSources()
+                // if (sources.isEmpty()) {
+                //     return@withContext """{"error": "没有可用的搜索源"}"""
+                // }
+
                 // 执行搜索（简化版，实际应该异步执行）
                 val results = mutableListOf<Map<String, Any>>()
                 
@@ -285,7 +284,7 @@ class VideoAssistantEngine(private val activity: MainActivity) {
                         "source_key" to vodInfo.sourceKey,
                         "title" to vodInfo.name,
                         "episode" to (vodInfo.playIndex + 1),
-                        "update_time" to vodInfo.updateTime
+                        "update_time" to vodInfo.last
                     )
                 }
                 

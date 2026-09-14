@@ -3,18 +3,15 @@ package com.github.tvbox.osc.util;
 import android.app.Activity;
 import android.content.Context;
 
-import com.github.tvbox.osc.api.ApiConfig;
-import com.github.tvbox.osc.bean.IJKCode;
 import com.github.tvbox.osc.player.EXOmPlayer;
-import com.github.tvbox.osc.player.IjkMediaPlayer;
 import com.github.tvbox.osc.player.render.SurfaceRenderViewFactory;
 import com.github.tvbox.osc.player.thirdparty.Kodi;
 import com.github.tvbox.osc.player.thirdparty.MXPlayer;
 import com.github.tvbox.osc.player.thirdparty.ReexPlayer;
 import com.github.tvbox.osc.player.thirdparty.RemoteTVBox;
 import com.github.tvbox.osc.player.thirdparty.VlcPlayer;
-import com.orhanobut.hawk.Hawk;
 
+import com.orhanobut.hawk.Hawk;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -22,9 +19,7 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-import tv.danmaku.ijk.media.player.IjkLibLoader;
 import xyz.doikki.videoplayer.exo.ExoMediaPlayerFactory;
-import xyz.doikki.videoplayer.player.AndroidMediaPlayerFactory;
 import xyz.doikki.videoplayer.player.PlayerFactory;
 import xyz.doikki.videoplayer.player.VideoView;
 import xyz.doikki.videoplayer.render.RenderViewFactory;
@@ -34,51 +29,20 @@ public class PlayerHelper {
     public static void updateCfg(VideoView videoView, JSONObject playerCfg) {
         // 防御:Activity 销毁后 view 已置空,异步回调里调用会 NPE(setPlayerFactory on null)
         if (videoView == null) return;
-        int playerType = Hawk.get(HawkConfig.PLAY_TYPE, 2); // 默认 ExoPlayer
-        int renderType = Hawk.get(HawkConfig.PLAY_RENDER, 0);
-        String ijkCode = Hawk.get(HawkConfig.IJK_CODEC, "软解码");
-        int scale = Hawk.get(HawkConfig.PLAY_SCALE, 0);
+        int renderType = 0;
+        int scale = 0;
         try {
-            playerType = playerCfg.getInt("pl");
             renderType = playerCfg.getInt("pr");
-            ijkCode = playerCfg.getString("ijk");
             scale = playerCfg.getInt("sc");
         } catch (JSONException e) {
             e.printStackTrace();
         }
-        IJKCode codec = ApiConfig.get().getIJKCodec(ijkCode);
-        PlayerFactory playerFactory;
-        if (playerType == 1) {
-            playerFactory = new PlayerFactory<IjkMediaPlayer>() {
-                @Override
-                public IjkMediaPlayer createPlayer(Context context) {
-                    return new IjkMediaPlayer(context, codec);
-                }
-            };
-            try {
-                tv.danmaku.ijk.media.player.IjkMediaPlayer.loadLibrariesOnce(new IjkLibLoader() {
-                    @Override
-                    public void loadLibrary(String s) throws UnsatisfiedLinkError, SecurityException {
-                        try {
-                            System.loadLibrary(s);
-                        } catch (Throwable th) {
-                            th.printStackTrace();
-                        }
-                    }
-                });
-            } catch (Throwable th) {
-                th.printStackTrace();
+        PlayerFactory playerFactory = new PlayerFactory<EXOmPlayer>() {
+            @Override
+            public EXOmPlayer createPlayer(Context context) {
+                return new EXOmPlayer(context);
             }
-        } else if (playerType == 2) {
-            playerFactory = new PlayerFactory<EXOmPlayer>() {
-                @Override
-                public EXOmPlayer createPlayer(Context context) {
-                    return new EXOmPlayer(context);
-                }
-            };
-        } else {
-            playerFactory = AndroidMediaPlayerFactory.create();
-        }
+        };
         RenderViewFactory renderViewFactory = null;
         switch (renderType) {
             case 0:
@@ -97,40 +61,13 @@ public class PlayerHelper {
     public static void updateCfg(VideoView videoView) {
         // 防御:Activity 销毁后 view 已置空,异步回调里调用会 NPE(setPlayerFactory on null)
         if (videoView == null) return;
-        int playType = Hawk.get(HawkConfig.PLAY_TYPE, 2); // 默认 ExoPlayer
-        PlayerFactory playerFactory;
-        if (playType == 1) {
-            playerFactory = new PlayerFactory<IjkMediaPlayer>() {
-                @Override
-                public IjkMediaPlayer createPlayer(Context context) {
-                    return new IjkMediaPlayer(context, null);
-                }
-            };
-            try {
-                tv.danmaku.ijk.media.player.IjkMediaPlayer.loadLibrariesOnce(new IjkLibLoader() {
-                    @Override
-                    public void loadLibrary(String s) throws UnsatisfiedLinkError, SecurityException {
-                        try {
-                            System.loadLibrary(s);
-                        } catch (Throwable th) {
-                            th.printStackTrace();
-                        }
-                    }
-                });
-            } catch (Throwable th) {
-                th.printStackTrace();
-            }
-        } else if (playType == 2) {
-            playerFactory = new PlayerFactory<EXOmPlayer>() {
-                @Override
-                public EXOmPlayer createPlayer(Context context) {
-                    return new EXOmPlayer(context);
-                }
-            };
-        } else {
-            playerFactory = AndroidMediaPlayerFactory.create();
-        }
         int renderType = Hawk.get(HawkConfig.PLAY_RENDER, 0);
+        PlayerFactory playerFactory = new PlayerFactory<EXOmPlayer>() {
+            @Override
+            public EXOmPlayer createPlayer(Context context) {
+                return new EXOmPlayer(context);
+            }
+        };
         RenderViewFactory renderViewFactory = null;
         switch (renderType) {
             case 0:
@@ -145,84 +82,17 @@ public class PlayerHelper {
         videoView.setRenderViewFactory(renderViewFactory);
     }
 
-
     public static void init() {
-        try {
-            tv.danmaku.ijk.media.player.IjkMediaPlayer.loadLibrariesOnce(new IjkLibLoader() {
-                @Override
-                public void loadLibrary(String s) throws UnsatisfiedLinkError, SecurityException {
-                    try {
-                        System.loadLibrary(s);
-                    } catch (Throwable th) {
-                        th.printStackTrace();
-                    }
-                }
-            });
-        } catch (Throwable th) {
-            th.printStackTrace();
-        }
+        // 已固定使用 ExoPlayer，无需再预加载 IJK so
     }
 
     public static String getPlayerName(int playType) {
-        HashMap<Integer, String> playersInfo = getPlayersInfo();
-        if (playersInfo.containsKey(playType)) {
-            return playersInfo.get(playType);
-        } else {
-            return "系统播放器";
-        }
-    }
-
-    private static HashMap<Integer, String> mPlayersInfo = null;
-    public static HashMap<Integer, String> getPlayersInfo() {
-        if (mPlayersInfo == null) {
-            HashMap<Integer, String> playersInfo = new HashMap<>();
-            playersInfo.put(0, "系统播放器");
-            playersInfo.put(1, "IJK播放器");
-            playersInfo.put(2, "Exo播放器");
-            playersInfo.put(10, "MX播放器");
-            playersInfo.put(11, "Reex播放器");
-            playersInfo.put(12, "Kodi播放器");
-            playersInfo.put(13, "附近TVBox");
-            playersInfo.put(14, "VLC播放器");
-            mPlayersInfo = playersInfo;
-        }
-        return mPlayersInfo;
-    }
-
-    private static HashMap<Integer, Boolean> mPlayersExistInfo = null;
-    public static HashMap<Integer, Boolean> getPlayersExistInfo() {
-        if (mPlayersExistInfo == null) {
-            HashMap<Integer, Boolean> playersExist = new HashMap<>();
-            playersExist.put(0, false);
-            playersExist.put(1, true);
-            playersExist.put(2, true);
-            playersExist.put(10, MXPlayer.getPackageInfo() != null);
-            playersExist.put(11, ReexPlayer.getPackageInfo() != null);
-            playersExist.put(12, Kodi.getPackageInfo() != null);
-            playersExist.put(13, RemoteTVBox.getAvalible() != null);
-            playersExist.put(14, VlcPlayer.getPackageInfo() != null);
-            mPlayersExistInfo = playersExist;
-        }
-        return mPlayersExistInfo;
-    }
-
-    public static Boolean getPlayerExist(int playType) {
-        HashMap<Integer, Boolean> playersExistInfo = getPlayersExistInfo();
-        if (playersExistInfo.containsKey(playType)) {
-            return playersExistInfo.get(playType);
-        } else {
-            return false;
-        }
+        return "Exo播放器";
     }
 
     public static ArrayList<Integer> getExistPlayerTypes() {
-        HashMap<Integer, Boolean> playersExistInfo = getPlayersExistInfo();
         ArrayList<Integer> existPlayers = new ArrayList<>();
-        for(Integer playerType : playersExistInfo.keySet()) {
-            if (playersExistInfo.get(playerType)) {
-                existPlayers.add(playerType);
-            }
-        }
+        existPlayers.add(2);
         return existPlayers;
     }
 

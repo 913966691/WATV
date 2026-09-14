@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    竖屏全屏图标(B 站"上下双横线"风格)
+    上下各一条粗横线,表示向垂直方向展开。
+    与横屏全屏图标的 L 形括号形成明显区分。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- 顶部横线(粗) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M2,3 L22,3 L22,8 L2,8 Z" />
+    <!-- 底部横线(粗) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M2,16 L22,16 L22,21 L2,21 Z" />
+</vector>

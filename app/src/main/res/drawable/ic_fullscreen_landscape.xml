@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    横屏全屏图标(B 站"四角向外"风格)
+    四个角各一个 L 形括号,带粗臂,指向外侧,表示向四角方向展开占满全屏。
+    臂长加长加粗,在 26dp 按钮尺寸下仍能看清角向。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- 左上角 L 括号(粗臂) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M2,10 L2,2 L10,2 L10,5 L5,5 L5,10 Z" />
+    <!-- 右上角 L 括号(粗臂) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M14,2 L22,2 L22,10 L19,10 L19,5 L14,5 Z" />
+    <!-- 左下角 L 括号(粗臂) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M2,14 L5,14 L5,19 L10,19 L10,22 L2,22 Z" />
+    <!-- 右下角 L 括号(粗臂) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M19,14 L22,14 L22,22 L14,22 L14,19 L19,19 Z" />
+</vector>

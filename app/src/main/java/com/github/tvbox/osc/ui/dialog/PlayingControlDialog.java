@@ -139,8 +139,8 @@ public class PlayingControlDialog extends BottomPopupView {
                 tv.setBackground(getResources().getDrawable(R.drawable.bg_r_common_solid_primary));
                 tv.setTextColor(ColorUtils.getColor(R.color.white));
             }else {
-                tv.setBackground(getResources().getDrawable(R.drawable.bg_r_common_stroke_primary));
-                tv.setTextColor(ColorUtils.getColor(R.color.text_foreground));
+                tv.setBackground(getResources().getDrawable(R.drawable.bg_speed_unselected));
+                tv.setTextColor(ColorUtils.getColor(R.color.bili_text_secondary));
             }
         }
     }

@@ -15,7 +15,6 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.DiffUtil;
@@ -1076,10 +1075,10 @@ public class VodController extends BaseController {
     public void openSubtitle(boolean open) {
         if (open) {
             mSubtitleView.setVisibility(VISIBLE);
-            Toast.makeText(getContext(), "字幕已开启", Toast.LENGTH_SHORT).show();
+            ToastUtils.showShort("字幕已开启");
         } else {
             mSubtitleView.setVisibility(View.GONE);
-            Toast.makeText(getContext(), "字幕已关闭", Toast.LENGTH_SHORT).show();
+            ToastUtils.showShort("字幕已关闭");
         }
         hideBottom();
     }

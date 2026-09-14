@@ -76,6 +76,14 @@ public class PlayerTitleView extends FrameLayout implements IControlComponent {
                             ((com.github.tvbox.osc.ui.activity.DetailActivity) activity).toggleFullPreview();
                             return;
                         }
+                        // 单 Activity 架构下,直播/其他 Fragment 的播放器宿主是 MainActivity,
+                        // 旧代码会调 setRequestedOrientation(PORTRAIT) 强行把整个 MainActivity
+                        // 旋成竖屏,导致 Fragment 重建、mVideoView 被 release、播放中断。
+                        // 这里只退出全屏,不再动宿主 Activity 的方向。
+                        if (activity instanceof com.github.tvbox.osc.ui.activity.MainActivity) {
+                            mControlWrapper.stopFullScreen();
+                            return;
+                        }
                         activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
                         mControlWrapper.stopFullScreen();
                     }else {

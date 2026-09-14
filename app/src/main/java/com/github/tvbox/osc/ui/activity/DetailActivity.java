@@ -23,7 +23,6 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
-import android.widget.Toast;
 
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
@@ -231,11 +230,11 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
                 String text = mBinding.tvCollect.getText().toString();
                 if ("加入收藏".equals(text)) {
                     RoomDataManger.insertVodCollect(sourceKey, vodInfo);
-                    Toast.makeText(DetailActivity.this, "已加入收藏夹", Toast.LENGTH_SHORT).show();
+                    ToastUtils.showShort("已加入收藏夹");
                     mBinding.tvCollect.setText("取消收藏");
                 } else {
                     RoomDataManger.deleteVodCollect(sourceKey, vodInfo);
-                    Toast.makeText(DetailActivity.this, "已移除收藏夹", Toast.LENGTH_SHORT).show();
+                    ToastUtils.showShort("已移除收藏夹");
                     mBinding.tvCollect.setText("加入收藏");
                 }
             }
@@ -1325,12 +1324,12 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
      */
     public void onCastClick() {
         if (playFragment == null) {
-            android.widget.Toast.makeText(this, "播放器未就绪", android.widget.Toast.LENGTH_SHORT).show();
+            ToastUtils.showShort("播放器未就绪");
             return;
         }
         String url = playFragment.getFinalUrl();
         if (url == null || url.isEmpty()) {
-            android.widget.Toast.makeText(this, "无法获取播放地址", android.widget.Toast.LENGTH_SHORT).show();
+            ToastUtils.showShort("无法获取播放地址");
             return;
         }
         String[] title = {""};

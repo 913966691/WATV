@@ -34,7 +34,7 @@ public class PlayerHelper {
     public static void updateCfg(VideoView videoView, JSONObject playerCfg) {
         // 防御:Activity 销毁后 view 已置空,异步回调里调用会 NPE(setPlayerFactory on null)
         if (videoView == null) return;
-        int playerType = Hawk.get(HawkConfig.PLAY_TYPE, 0);
+        int playerType = Hawk.get(HawkConfig.PLAY_TYPE, 2); // 默认 ExoPlayer
         int renderType = Hawk.get(HawkConfig.PLAY_RENDER, 0);
         String ijkCode = Hawk.get(HawkConfig.IJK_CODEC, "软解码");
         int scale = Hawk.get(HawkConfig.PLAY_SCALE, 0);
@@ -97,7 +97,7 @@ public class PlayerHelper {
     public static void updateCfg(VideoView videoView) {
         // 防御:Activity 销毁后 view 已置空,异步回调里调用会 NPE(setPlayerFactory on null)
         if (videoView == null) return;
-        int playType = Hawk.get(HawkConfig.PLAY_TYPE, 0);
+        int playType = Hawk.get(HawkConfig.PLAY_TYPE, 2); // 默认 ExoPlayer
         PlayerFactory playerFactory;
         if (playType == 1) {
             playerFactory = new PlayerFactory<IjkMediaPlayer>() {

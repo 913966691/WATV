@@ -15,12 +15,12 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.DiffUtil;
 
 import com.blankj.utilcode.util.LogUtils;
+import com.blankj.utilcode.util.ToastUtils;
 import com.blankj.utilcode.util.SPUtils;
 import com.chad.library.adapter.base.BaseQuickAdapter;
 import com.github.tvbox.osc.R;
@@ -547,7 +547,7 @@ public class LocalVideoController extends BaseController {
                 mSubtitleView.clearSubtitleCache();
                 mSubtitleView.isInternal = false;
                 hideBottom();
-                Toast.makeText(getContext(), "字幕已关闭", Toast.LENGTH_SHORT).show();
+                ToastUtils.showShort("字幕已关闭");
                 return true;
             }
         });

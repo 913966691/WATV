@@ -20,7 +20,6 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -38,6 +37,7 @@ import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.api.ApiConfig;
 import com.github.tvbox.osc.base.App;
 import com.github.tvbox.osc.base.BaseActivity;
+import com.github.tvbox.osc.base.LiveHost;
 import com.github.tvbox.osc.bean.LiveChannelGroup;
 import com.github.tvbox.osc.bean.LiveChannelItem;
 import com.github.tvbox.osc.bean.LivePlayerManager;
@@ -94,7 +94,7 @@ import xyz.doikki.videoplayer.player.VideoView;
  * @date :2021/1/12
  * @description:
  */
-public class LiveActivity extends BaseActivity {
+public class LiveActivity extends BaseActivity implements LiveHost {
     public static Context context;
     private VideoView mVideoView;
     private TextView tvChannelInfo;
@@ -1014,7 +1014,7 @@ public class LiveActivity extends BaseActivity {
                     channelGroupPasswordConfirmed.add(groupIndex);
                     loadChannelGroupDataAndPlay(groupIndex, liveChannelIndex);
                 } else {
-                    Toast.makeText(App.getInstance(), "密码错误", Toast.LENGTH_SHORT).show();
+                    ToastUtils.showShort("密码错误");
                 }
             }
 
@@ -1123,7 +1123,7 @@ public class LiveActivity extends BaseActivity {
 
     private boolean isCurrentLiveChannelValid() {
         if (currentLiveChannelItem == null) {
-            Toast.makeText(App.getInstance(), "请先选择频道", Toast.LENGTH_SHORT).show();
+            ToastUtils.showShort("请先选择频道");
             return false;
         }
         return true;
@@ -1192,7 +1192,7 @@ public class LiveActivity extends BaseActivity {
                 .hasShadowBg(false)
                 .popupHeight(ScreenUtils.getScreenHeight())
                 .popupPosition(PopupPosition.Right)
-                .asCustom(new AllChannelsRightDialog(this));
+                .asCustom(new AllChannelsRightDialog(this, this));
         mAllChannelRightDialog.show();
     }
 
@@ -1202,6 +1202,16 @@ public class LiveActivity extends BaseActivity {
 
     public LiveChannelItem getCurrentLiveChannelItem(){
         return currentLiveChannelItem;
+    }
+
+    @Override
+    public LiveChannelGroupNewAdapter getLiveChannelGroupAdapter() {
+        return liveChannelGroupAdapter;
+    }
+
+    @Override
+    public LiveChannelItemNewAdapter getLiveChannelItemAdapter() {
+        return liveChannelItemAdapter;
     }
 
     /**
@@ -1249,7 +1259,7 @@ public class LiveActivity extends BaseActivity {
                     .popupHeight(ScreenUtils.getScreenHeight())
                     .popupWidth(ConvertUtils.dp2px(300))
                     .popupPosition(PopupPosition.Right)
-                    .asCustom(new LiveSettingRightDialog(this));
+                    .asCustom(new LiveSettingRightDialog(this, this));
             mSettingRightDialog.show();
         }else {
             mSettingBottomDialog = new XPopup.Builder(this)
@@ -1257,7 +1267,7 @@ public class LiveActivity extends BaseActivity {
                     .popupHeight(ScreenUtils.getScreenHeight()/2)
                     .hasNavigationBar(false)
                     .hasShadowBg(false)
-                    .asCustom(new LiveSettingDialog(this));
+                    .asCustom(new LiveSettingDialog(this, this));
             mSettingBottomDialog.show();
         }
 

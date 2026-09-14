@@ -16,6 +16,7 @@ import com.chad.library.adapter.base.BaseQuickAdapter;
 import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.api.ApiConfig;
 import com.github.tvbox.osc.base.BaseLazyFragment;
+import com.github.tvbox.osc.base.MainTabHost;
 import com.github.tvbox.osc.bean.Movie;
 import com.github.tvbox.osc.bean.VodInfo;
 import com.github.tvbox.osc.cache.RoomDataManger;
@@ -24,7 +25,6 @@ import com.github.tvbox.osc.ui.activity.CollectActivity;
 import com.github.tvbox.osc.ui.activity.DetailActivity;
 import com.github.tvbox.osc.ui.activity.FastSearchActivity;
 import com.github.tvbox.osc.ui.activity.HistoryActivity;
-import com.github.tvbox.osc.ui.activity.LiveActivity;
 
 import com.github.tvbox.osc.ui.activity.SettingActivity;
 import com.github.tvbox.osc.ui.adapter.GridAdapter;
@@ -96,7 +96,7 @@ public class UserFragment extends BaseLazyFragment {
     @Override
     protected void init() {
         tvHotList1 = findViewById(R.id.tvHotList1);
-        findViewById(R.id.btn_live).setOnClickListener(view -> jumpActivity(LiveActivity.class));
+        findViewById(R.id.btn_live).setOnClickListener(view -> ((MainTabHost) requireActivity()).switchToTab(MainTabHost.TAB_LIVE));
         homeHotVodAdapter = new GridAdapter();
         homeHotVodAdapter.setOnItemClickListener(new BaseQuickAdapter.OnItemClickListener() {
             @Override

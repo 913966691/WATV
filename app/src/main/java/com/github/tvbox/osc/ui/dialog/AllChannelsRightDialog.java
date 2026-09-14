@@ -10,9 +10,9 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.blankj.utilcode.util.ColorUtils;
 import com.chad.library.adapter.base.BaseQuickAdapter;
 import com.github.tvbox.osc.R;
+import com.github.tvbox.osc.base.LiveHost;
 import com.github.tvbox.osc.bean.VodInfo;
 import com.github.tvbox.osc.databinding.DialogAllChannelBinding;
-import com.github.tvbox.osc.ui.activity.LiveActivity;
 import com.github.tvbox.osc.ui.adapter.LiveChannelGroupNewAdapter;
 import com.github.tvbox.osc.ui.adapter.LiveChannelItemNewAdapter;
 import com.github.tvbox.osc.ui.widget.GridSpacingItemDecoration;
@@ -30,12 +30,12 @@ import java.util.List;
 
 public class AllChannelsRightDialog extends DrawerPopupView {
 
-    private final LiveActivity mActivity;
+    private final LiveHost mHost;
     private com.github.tvbox.osc.databinding.DialogAllChannelBinding mBinding;
 
-    public AllChannelsRightDialog(@NonNull @NotNull Context context) {
+    public AllChannelsRightDialog(@NonNull @NotNull Context context, @NonNull LiveHost host) {
         super(context);
-        mActivity = (LiveActivity) context;
+        mHost = host;
     }
 
     @Override
@@ -55,8 +55,8 @@ public class AllChannelsRightDialog extends DrawerPopupView {
         mBinding.mGroupGridView.setHasFixedSize(true);
         mBinding.mGroupGridView.setLayoutManager(new V7LinearLayoutManager(getContext(), 1, false));
 
-        if (mActivity.liveChannelGroupAdapter!=null){
-            mBinding.mGroupGridView.setAdapter(mActivity.liveChannelGroupAdapter);
+        if (mHost.getLiveChannelGroupAdapter() != null) {
+            mBinding.mGroupGridView.setAdapter(mHost.getLiveChannelGroupAdapter());
         }
 
     }
@@ -64,8 +64,8 @@ public class AllChannelsRightDialog extends DrawerPopupView {
         mBinding.mChannelGridView.setHasFixedSize(true);
         mBinding.mChannelGridView.setLayoutManager(new V7LinearLayoutManager(getContext(), 1, false));
 
-        if (mActivity.liveChannelItemAdapter!=null){
-            mBinding.mChannelGridView.setAdapter(mActivity.liveChannelItemAdapter);
+        if (mHost.getLiveChannelItemAdapter() != null) {
+            mBinding.mChannelGridView.setAdapter(mHost.getLiveChannelItemAdapter());
         }
     }
 

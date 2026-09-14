@@ -20,6 +20,7 @@ import com.github.tvbox.osc.api.ApiConfig.LoadConfigCallback
 import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.base.BaseLazyFragment
 import com.github.tvbox.osc.base.BaseVbFragment
+import com.github.tvbox.osc.base.MainTabHost
 import com.github.tvbox.osc.bean.AbsSortXml
 import com.github.tvbox.osc.bean.MovieSort.SortData
 import com.github.tvbox.osc.bean.SourceBean
@@ -32,7 +33,6 @@ import com.github.tvbox.osc.ui.activity.CollectActivity
 import com.github.tvbox.osc.ui.activity.FastSearchActivity
 import com.github.tvbox.osc.ui.activity.HistoryActivity
 import com.github.tvbox.osc.ui.activity.MainActivity
-import com.github.tvbox.osc.ui.activity.SubscriptionActivity
 import com.github.tvbox.osc.ui.adapter.SelectDialogAdapter.SelectDialogInterface
 import com.github.tvbox.osc.ui.dialog.LastViewedDialog
 import com.github.tvbox.osc.ui.dialog.SelectDialog
@@ -241,7 +241,7 @@ class HomeFragment : BaseVbFragment<FragmentHomeBinding>() {
 
                     override fun onTitleClick() {
                         errorTipDialog?.hide()
-                        jumpActivity(SubscriptionActivity::class.java)
+                        (requireActivity() as MainTabHost).switchToTab(MainTabHost.TAB_SUBSCRIBE)
                     }
                 })
         }

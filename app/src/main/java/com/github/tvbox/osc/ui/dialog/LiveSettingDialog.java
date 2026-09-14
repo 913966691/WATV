@@ -9,11 +9,11 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.chad.library.adapter.base.BaseQuickAdapter;
 import com.github.tvbox.osc.R;
+import com.github.tvbox.osc.base.LiveHost;
 import com.github.tvbox.osc.bean.LiveSettingGroup;
 import com.github.tvbox.osc.bean.LiveSettingItem;
 import com.github.tvbox.osc.bean.VodInfo;
 import com.github.tvbox.osc.databinding.DialogLiveSettingBinding;
-import com.github.tvbox.osc.ui.activity.LiveActivity;
 import com.github.tvbox.osc.ui.adapter.LiveSettingGroupAdapter;
 import com.github.tvbox.osc.ui.adapter.LiveSettingItemAdapter;
 import com.github.tvbox.osc.ui.widget.GridSpacingItemDecoration;
@@ -37,15 +37,15 @@ public class LiveSettingDialog extends BottomPopupView {
 
 
     @NonNull
-    private final LiveActivity mActivity;
+    private final LiveHost mHost;
     private DialogLiveSettingBinding mBinding;
     private LiveSettingGroupAdapter liveSettingGroupAdapter;
     private LiveSettingItemAdapter liveSettingItemAdapter;
     private List<LiveSettingGroup> liveSettingGroupList = new ArrayList<>();
 
-    public LiveSettingDialog(@NonNull @NotNull Context context) {
+    public LiveSettingDialog(@NonNull @NotNull Context context, @NonNull LiveHost host) {
         super(context);
-        mActivity = (LiveActivity)context;
+        mHost = host;
     }
 
     @Override
@@ -147,13 +147,13 @@ public class LiveSettingDialog extends BottomPopupView {
 
         switch (position) {
             case 0:
-                liveSettingItemAdapter.selectItem(mActivity.getCurrentLiveChannelItem().getSourceIndex(), true, false);
+                liveSettingItemAdapter.selectItem(mHost.getCurrentLiveChannelItem().getSourceIndex(), true, false);
                 break;
             case 1:
-                liveSettingItemAdapter.selectItem(mActivity.getLivePlayerManager().getLivePlayerScale(), true, true);
+                liveSettingItemAdapter.selectItem(mHost.getLivePlayerManager().getLivePlayerScale(), true, true);
                 break;
             case 2:
-                liveSettingItemAdapter.selectItem(mActivity.getLivePlayerManager().getLivePlayerType(), true, true);
+                liveSettingItemAdapter.selectItem(mHost.getLivePlayerManager().getLivePlayerType(), true, true);
                 break;
         }
         int scrollToPosition = liveSettingItemAdapter.getSelectedItemIndex();
@@ -162,7 +162,7 @@ public class LiveSettingDialog extends BottomPopupView {
     }
 
     private void loadCurrentSourceList() {
-        ArrayList<String> currentSourceNames = mActivity.getCurrentLiveChannelItem().getChannelSourceNames();
+        ArrayList<String> currentSourceNames = mHost.getCurrentLiveChannelItem().getChannelSourceNames();
         ArrayList<LiveSettingItem> liveSettingItemList = new ArrayList<>();
         for (int j = 0; j < currentSourceNames.size(); j++) {
             LiveSettingItem liveSettingItem = new LiveSettingItem();
@@ -183,13 +183,13 @@ public class LiveSettingDialog extends BottomPopupView {
         }
         switch (settingGroupIndex) {
             case 0://线路切换
-                mActivity.switchingLine2Replay(position);
+                mHost.switchingLine2Replay(position);
                 break;
             case 1://画面比例
-                mActivity.changeScale(position);
+                mHost.changeScale(position);
                 break;
             case 2://播放解码
-                mActivity.changePlayer(position);
+                mHost.changePlayer(position);
                 break;
             case 3://超时换源
                 Hawk.put(HawkConfig.LIVE_CONNECT_TIMEOUT, position);

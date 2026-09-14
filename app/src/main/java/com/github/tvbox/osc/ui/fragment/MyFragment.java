@@ -1,10 +1,14 @@
 package com.github.tvbox.osc.ui.fragment;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.text.TextUtils;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 
 import com.blankj.utilcode.util.AppUtils;
 import com.blankj.utilcode.util.ClipboardUtils;
@@ -39,6 +43,23 @@ import java.util.List;
  */
 public class MyFragment extends BaseVbFragment<FragmentMyBinding> {
 
+    // 打开 SettingActivity 的 launcher，返回后若带 switch_tab 信号则切 tab
+    // 必须在 onCreate() 中注册，字段初始化器在进程恢复时可能时序不对
+    private ActivityResultLauncher<Intent> mSettingLauncher;
+
+    @Override
+    public void onCreate(android.os.Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        mSettingLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(), result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        int tab = result.getData().getIntExtra("switch_tab", -1);
+                        if (tab >= 0) {
+                            ((com.github.tvbox.osc.base.MainTabHost) requireActivity()).switchToTab(tab);
+                        }
+                    }
+                });
+    }
 
     @Override
     protected void init() {
@@ -56,7 +77,11 @@ public class MyFragment extends BaseVbFragment<FragmentMyBinding> {
                         }
                     }, null, R.layout.dialog_input).show();
         });
-        mBinding.tvSetting.setOnClickListener(v -> jumpActivity(SettingActivity.class));
+        mBinding.tvSetting.setOnClickListener(v -> {
+            if (mSettingLauncher != null) {
+                mSettingLauncher.launch(new Intent(requireContext(), SettingActivity.class));
+            }
+        });
 
         mBinding.tvHistory.setOnClickListener(v -> jumpActivity(HistoryActivity.class));
 

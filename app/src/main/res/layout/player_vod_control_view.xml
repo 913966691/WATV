@@ -315,7 +315,7 @@
                 android:scaleType="centerCrop"
                 android:padding="4dp"
                 android:contentDescription="竖屏全屏播放"
-                android:src="@drawable/ic_fullscreen_portrait"/>
+                android:src="@drawable/dkplayer_ic_action_fullscreen_exit"/>
 
             <androidx.appcompat.widget.AppCompatImageView
                 android:id="@+id/iv_fullscreen"
@@ -324,7 +324,7 @@
                 android:scaleType="centerCrop"
                 android:padding="4dp"
                 android:contentDescription="横屏全屏播放"
-                android:src="@drawable/ic_fullscreen_landscape"/>
+                android:src="@drawable/dkplayer_ic_action_fullscreen"/>
         </LinearLayout>
 
             <HorizontalScrollView

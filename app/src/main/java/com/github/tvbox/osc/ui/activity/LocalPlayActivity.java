@@ -210,7 +210,7 @@ public class LocalPlayActivity extends BaseVbActivity<ActivityLocalPlayBinding> 
         mVodPlayerCfg = new JSONObject();
         try {
             if (!mVodPlayerCfg.has("pl")) {
-                mVodPlayerCfg.put("pl", Hawk.get(HawkConfig.PLAY_TYPE, 1));
+                mVodPlayerCfg.put("pl", Hawk.get(HawkConfig.PLAY_TYPE, 2)); // 默认 ExoPlayer
             }
             if (!mVodPlayerCfg.has("pr")) {
                 mVodPlayerCfg.put("pr", Hawk.get(HawkConfig.PLAY_RENDER, 0));

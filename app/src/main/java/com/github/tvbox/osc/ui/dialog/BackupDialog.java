@@ -113,7 +113,7 @@ public class BackupDialog extends BaseDialog {
                                 sharedPreferences.edit().putString(key, value).commit();
                             }
                         }
-                        Toast.makeText(getContext(), "恢复成功,即将重启应用!", Toast.LENGTH_SHORT).show();
+                        ToastUtils.showShort("恢复成功,即将重启应用!");
                         new Handler(Looper.getMainLooper()).postDelayed(() -> AppUtils.relaunchApp(true),2000);
                     } else {
                         Toast.makeText(getContext(), "Hawk恢复失败!", Toast.LENGTH_SHORT).show();

@@ -58,7 +58,7 @@ class SettingActivity : BaseVbActivity<ActivitySettingBinding>() {
         mBinding.tvHistoryNum.text =
             HistoryHelper.getHistoryNumName(Hawk.get(HawkConfig.HISTORY_NUM, 0))
         mBinding.tvScaleType.text = PlayerHelper.getScaleName(Hawk.get(HawkConfig.PLAY_SCALE, 0))
-        mBinding.tvPlay.text = PlayerHelper.getPlayerName(Hawk.get(HawkConfig.PLAY_TYPE, 0))
+        mBinding.tvPlay.text = PlayerHelper.getPlayerName(Hawk.get(HawkConfig.PLAY_TYPE, 2))
         mBinding.tvRenderType.text =
             PlayerHelper.getRenderName(Hawk.get(HawkConfig.PLAY_RENDER, 0))
 
@@ -66,7 +66,9 @@ class SettingActivity : BaseVbActivity<ActivitySettingBinding>() {
         mBinding.tvLiveApi.text = shortSourceName(currentLiveApi, "跟随订阅")
 
         mBinding.llVodApi.setOnClickListener {
-            jumpActivity(SubscriptionActivity::class.java)
+            // 切回 MainActivity 的订阅 tab,不再跳独立 SubscriptionActivity
+            setResult(RESULT_OK, Intent().putExtra("switch_tab", 2))
+            finish()
         }
 
         mBinding.switchPrivateBrowsing.setChecked(Hawk.get(HawkConfig.PRIVATE_BROWSING, false))
@@ -254,7 +256,7 @@ class SettingActivity : BaseVbActivity<ActivitySettingBinding>() {
 
         mBinding.llPlay.setOnClickListener { v: View? ->
             FastClickCheckUtil.check(v)
-            val playerType = Hawk.get(HawkConfig.PLAY_TYPE, 0)
+            val playerType = Hawk.get(HawkConfig.PLAY_TYPE, 2) // 默认 ExoPlayer
             var defaultPos = 0
             val players = PlayerHelper.getExistPlayerTypes()
             val renders = ArrayList<Int>()

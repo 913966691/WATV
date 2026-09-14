@@ -604,7 +604,7 @@ public class PlayFragment extends BaseLazyFragment {
         }
 
         if (trackInfo == null) {
-            Toast.makeText(mContext, "没有音轨", Toast.LENGTH_SHORT).show();
+            ToastUtils.showShort("没有音轨");
             return;
         }
         List<TrackInfoBean> bean = trackInfo.getAudio();
@@ -671,7 +671,7 @@ public class PlayFragment extends BaseLazyFragment {
         }
 
         if (trackInfo == null) {
-            Toast.makeText(mContext, "没有内置字幕", Toast.LENGTH_SHORT).show();
+            ToastUtils.showShort("没有内置字幕");
             return;
         }
         List<TrackInfoBean> bean = trackInfo.getSubtitle();
@@ -781,7 +781,7 @@ public class PlayFragment extends BaseLazyFragment {
                 @Override
                 public void run() {
                     if (finish) {
-                        Toast.makeText(mContext, err, Toast.LENGTH_SHORT).show();
+                        ToastUtils.showShort(err);
                     } else {
                         setTip(err, false, true);
                     }
@@ -1185,7 +1185,7 @@ public class PlayFragment extends BaseLazyFragment {
         }
         try {
             if (!mVodPlayerCfg.has("pl")) {
-                mVodPlayerCfg.put("pl", (sourceBean.getPlayerType() == -1) ? (int) Hawk.get(HawkConfig.PLAY_TYPE, 1) : sourceBean.getPlayerType());
+                mVodPlayerCfg.put("pl", (sourceBean.getPlayerType() == -1) ? (int) Hawk.get(HawkConfig.PLAY_TYPE, 2) : sourceBean.getPlayerType());
             }
             if (!mVodPlayerCfg.has("pr")) {
                 mVodPlayerCfg.put("pr", Hawk.get(HawkConfig.PLAY_RENDER, 0));
@@ -1285,7 +1285,7 @@ public class PlayFragment extends BaseLazyFragment {
             hasNext = mVodInfo.playIndex + 1 < mVodInfo.seriesMap.get(mVodInfo.playFlag).size();
         }
         if (!hasNext) {
-            Toast.makeText(requireContext(), "已经是最后一集了!", Toast.LENGTH_SHORT).show();
+            ToastUtils.showShort("已经是最后一集了!");
             return;
         } else {
             mVodInfo.playIndex++;
@@ -1301,7 +1301,7 @@ public class PlayFragment extends BaseLazyFragment {
             hasPre = mVodInfo.playIndex - 1 >= 0;
         }
         if (!hasPre) {
-            Toast.makeText(requireContext(), "已经是第一集了!", Toast.LENGTH_SHORT).show();
+            ToastUtils.showShort("已经是第一集了!");
             return;
         }
         mVodInfo.playIndex--;

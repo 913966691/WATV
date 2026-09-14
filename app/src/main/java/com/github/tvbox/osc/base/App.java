@@ -71,10 +71,10 @@ public class App extends MultiDexApplication {
         FileUtils.cleanPlayerCache();
         initCrashConfig();
         Utils.initTheme();
-        // Toast 统一为白底粉字,适配浅色主题(默认深色底在白底 App 里看不清)
+        // Toast 统一为粉底白字(B 站风),所有 ToastUtils.show* 与系统 Toast.makeText 都走这里
         ToastUtils.getDefaultMaker()
                 .setBgResource(R.drawable.bg_toast)
-                .setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.bili_pink))
+                .setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.white))
                 .setTextSize(14);
         // 加载订阅源
         loadSubscriptions();
@@ -86,7 +86,8 @@ public class App extends MultiDexApplication {
         Hawk.put(HawkConfig.DEBUG_OPEN, false);
 
         putDefault(HawkConfig.HOME_REC, 0);                  //推荐: 0=豆瓣热播, 1=站点推荐
-        putDefault(HawkConfig.PLAY_TYPE, 2);                 //播放器: 0=系统, 1=IJK, 2=Exo
+        // 强制覆盖播放器默认值为 ExoPlayer(旧缓存可能是 0=系统播放器)
+        Hawk.put(HawkConfig.PLAY_TYPE, 2);
         putDefault(HawkConfig.IJK_CODEC, "硬解码");           //IJK解码: 软解码, 硬解码
         putDefault(HawkConfig.BACKGROUND_PLAY_TYPE,2);           //后台播放: 0 关闭,1 开启,2 画中画
         putDefault(HawkConfig.DOH_URL, 0);                   //安全DNS: 0=关闭, 1=腾讯, 2=阿里, 3=360, 4=Google, 5=AdGuard, 6=Quad9

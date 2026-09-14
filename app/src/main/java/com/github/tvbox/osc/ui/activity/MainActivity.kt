@@ -3,6 +3,7 @@ package com.github.tvbox.osc.ui.activity
 import android.content.Intent
 import android.graphics.Typeface
 import android.os.Process
+import android.view.KeyEvent
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import androidx.viewpager2.widget.ViewPager2
@@ -12,14 +13,17 @@ import com.blankj.utilcode.util.ActivityUtils
 import com.blankj.utilcode.util.ToastUtils
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.base.BaseVbActivity
+import com.github.tvbox.osc.base.MainTabHost
 import com.github.tvbox.osc.constant.IntentKey
 import com.github.tvbox.osc.databinding.ActivityMainBinding
 import com.github.tvbox.osc.ui.fragment.GridFragment
 import com.github.tvbox.osc.ui.fragment.HomeFragment
+import com.github.tvbox.osc.ui.fragment.LiveFragment
 import com.github.tvbox.osc.ui.fragment.MyFragment
+import com.github.tvbox.osc.ui.fragment.SubFragment
 import kotlin.system.exitProcess
 
-class MainActivity : BaseVbActivity<ActivityMainBinding>() {
+class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
 
     companion object {
         const val EXTRA_START_DESTINATION = "main_start_destination"
@@ -32,7 +36,7 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>() {
         super.onCreate(savedInstanceState)
     }
 
-    private val fragments = listOf(HomeFragment(), MyFragment())
+    private val fragments = listOf(HomeFragment(), LiveFragment(), SubFragment(), MyFragment())
     var useCacheConfig = false
     private var exitTime = 0L
 
@@ -90,8 +94,15 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>() {
         setupBottomNav()
         mBinding.vp.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
-                // ViewPager 只有 2 页,0=首页 1=我的;直播/订阅是跳转 Activity 不占页
-                selectTab(if (position == 0) BottomTab.HOME else BottomTab.MY, false)
+                // 4 页:0=首页 1=直播 2=订阅 3=我的
+                val tab = when (position) {
+                    0 -> BottomTab.HOME
+                    1 -> BottomTab.LIVE
+                    2 -> BottomTab.SUBSCRIBE
+                    3 -> BottomTab.MY
+                    else -> BottomTab.HOME
+                }
+                selectTab(tab, false)
             }
         })
         openDestination(intent.getIntExtra(EXTRA_START_DESTINATION, R.id.navigation_home))
@@ -120,36 +131,45 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>() {
     private fun openDestination(destination: Int) {
         when (destination) {
             R.id.navigation_dashboard -> selectTab(BottomTab.MY)
-            R.id.navigation_live -> jumpActivity(LiveActivity::class.java)
-            R.id.navigation_subscription -> jumpActivity(SubscriptionActivity::class.java)
+            R.id.navigation_live -> selectTab(BottomTab.LIVE)
+            R.id.navigation_subscription -> selectTab(BottomTab.SUBSCRIBE)
             else -> selectTab(BottomTab.HOME)
         }
     }
 
     override fun onBackPressed() {
-        if (mBinding.vp.currentItem == 1) {
-            mBinding.vp.currentItem = 0
-            return
-        }
-        val homeFragment = fragments[0] as HomeFragment
-        if (!homeFragment.isAdded) { // 资源不足销毁重建时未挂载到activity时getChildFragmentManager会崩溃
-            confirmExit()
-            return
-        }
-        val childFragments = homeFragment.allFragments
-        if (childFragments.isEmpty()) { //加载中(没有tab)
-            confirmExit()
-            return
-        }
-        val fragment: Fragment = childFragments[homeFragment.tabIndex]
-        if (fragment is GridFragment) { // 首页数据源动态加载的tab
-            if (!fragment.restoreView()) { // 有回退的view,先回退(AList等文件夹列表),没有可回退的,返到主页tab
-                if (!homeFragment.scrollToFirstTab()) {
+        when (currentTab) {
+            BottomTab.LIVE -> {
+                // 直播页的弹窗/播放器优先消费返回键
+                if ((fragments[1] as? LiveFragment)?.handleBackPressed() == true) return
+                selectTab(BottomTab.HOME)
+            }
+            BottomTab.SUBSCRIBE -> selectTab(BottomTab.HOME)
+            BottomTab.MY -> {
+                selectTab(BottomTab.HOME)
+            }
+            BottomTab.HOME -> {
+                val homeFragment = fragments[0] as HomeFragment
+                if (!homeFragment.isAdded) { // 资源不足销毁重建时未挂载到activity时getChildFragmentManager会崩溃
+                    confirmExit()
+                    return
+                }
+                val childFragments = homeFragment.allFragments
+                if (childFragments.isEmpty()) { //加载中(没有tab)
+                    confirmExit()
+                    return
+                }
+                val fragment: Fragment = childFragments[homeFragment.tabIndex]
+                if (fragment is GridFragment) { // 首页数据源动态加载的tab
+                    if (!fragment.restoreView()) { // 有回退的view,先回退(AList等文件夹列表),没有可回退的,返到主页tab
+                        if (!homeFragment.scrollToFirstTab()) {
+                            confirmExit()
+                        }
+                    }
+                } else {
                     confirmExit()
                 }
             }
-        } else {
-            confirmExit()
         }
     }
 
@@ -174,13 +194,8 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>() {
         val nav = mBinding.bottomNavRoot
 
         nav.tabHome.setOnClickListener { selectTab(BottomTab.HOME) }
-        nav.tabLive.setOnClickListener {
-            // 直播/订阅是跳转独立 Activity,不切换 ViewPager,也不改变当前选中态
-            jumpActivity(LiveActivity::class.java)
-        }
-        nav.tabSubscribe.setOnClickListener {
-            jumpActivity(SubscriptionActivity::class.java)
-        }
+        nav.tabLive.setOnClickListener { selectTab(BottomTab.LIVE) }
+        nav.tabSubscribe.setOnClickListener { selectTab(BottomTab.SUBSCRIBE) }
         nav.tabMy.setOnClickListener { selectTab(BottomTab.MY) }
 
         selectTab(BottomTab.HOME, false)
@@ -205,25 +220,52 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>() {
         nav.tvHome.setTextColor(if (homeActive) selected else normal)
         nav.tvHome.setTypeface(null, if (homeActive) Typeface.BOLD else Typeface.NORMAL)
 
-        // 我的 (ViewPager 第 1 页)
+        // 直播 (ViewPager 第 1 页)
+        val liveActive = tab == BottomTab.LIVE
+        nav.ivLive.setColorFilter(if (liveActive) selected else normal)
+        nav.tvLive.setTextColor(if (liveActive) selected else normal)
+        nav.tvLive.setTypeface(null, if (liveActive) Typeface.BOLD else Typeface.NORMAL)
+
+        // 订阅 (ViewPager 第 2 页)
+        val subActive = tab == BottomTab.SUBSCRIBE
+        nav.ivSubscribe.setColorFilter(if (subActive) selected else normal)
+        nav.tvSubscribe.setTextColor(if (subActive) selected else normal)
+        nav.tvSubscribe.setTypeface(null, if (subActive) Typeface.BOLD else Typeface.NORMAL)
+
+        // 我的 (ViewPager 第 3 页)
         val myActive = tab == BottomTab.MY
         nav.ivMy.setColorFilter(if (myActive) selected else normal)
         nav.tvMy.setTextColor(if (myActive) selected else normal)
         nav.tvMy.setTypeface(null, if (myActive) Typeface.BOLD else Typeface.NORMAL)
 
-        // 直播/订阅是跳转 Activity,永远保持未选中态
-        nav.ivLive.setColorFilter(normal)
-        nav.tvLive.setTextColor(normal)
-        nav.tvLive.setTypeface(null, Typeface.NORMAL)
-        nav.ivSubscribe.setColorFilter(normal)
-        nav.tvSubscribe.setTextColor(normal)
-        nav.tvSubscribe.setTypeface(null, Typeface.NORMAL)
-
         if (switchPage) {
-            val targetPage = if (tab == BottomTab.MY) 1 else 0
+            val targetPage = when (tab) {
+                BottomTab.HOME -> 0
+                BottomTab.LIVE -> 1
+                BottomTab.SUBSCRIBE -> 2
+                BottomTab.MY -> 3
+            }
             if (mBinding.vp.currentItem != targetPage) {
                 mBinding.vp.setCurrentItem(targetPage, false)
             }
         }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (currentTab == BottomTab.LIVE) {
+            (fragments[1] as? LiveFragment)?.handleKeyEvent(event)
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun switchToTab(tab: Int) {
+        val target = when (tab) {
+            MainTabHost.TAB_HOME -> BottomTab.HOME
+            MainTabHost.TAB_LIVE -> BottomTab.LIVE
+            MainTabHost.TAB_SUBSCRIBE -> BottomTab.SUBSCRIBE
+            MainTabHost.TAB_MY -> BottomTab.MY
+            else -> BottomTab.HOME
+        }
+        selectTab(target)
     }
 }

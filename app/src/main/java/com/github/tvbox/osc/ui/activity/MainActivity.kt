@@ -90,6 +90,12 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
             override fun createFragment(position: Int): Fragment = fragments[position]
         }
 
+        // 注意:这里刻意不设 offscreenPageLimit。
+        // 曾经设过 fragments.size(4 页常驻)想消除快速切 tab 的 fragment 重建抖动,结果:
+        //  1) LiveFragment 在 App 启动瞬间创建,ApiConfig 还没就绪 → 误报"暂无直播频道";
+        //  2) HomeFragment 再也不重建,切订阅源后没人重新 loadConfig → 必须重启 App。
+        // 页面重建是本项目"重新读取配置"的既有机制,不要堵死它。
+
         // 自绘底部导航:4 个 tab 用 weight=1 等宽,横屏大屏下也必定铺满容器、左右边距对称
         setupBottomNav()
         mBinding.vp.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
@@ -128,17 +134,45 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
         openDestination(intent.getIntExtra(EXTRA_START_DESTINATION, R.id.navigation_home))
     }
 
+    /**
+     * 直播可见性去重后再下发。
+     *
+     * selectTab 与 ViewPager2 的 onPageSelected 会形成回环,一次点按会连续两次下发
+     * 相同的可见状态(日志里就是两行一模一样的 setPageVisible)。重复下发会重置
+     * LiveFragment 的起播去抖计时,也可能把上一次的释放任务冲掉。
+     */
+    private var lastLiveVisible: Boolean? = null
+
+    private fun applyLiveVisible(visible: Boolean) {
+        if (lastLiveVisible == visible) return
+        lastLiveVisible = visible
+        (fragments[1] as? LiveFragment)?.setPageVisible(visible)
+    }
+
     override fun onPause() {
         super.onPause()
         // 离开主界面(最常见的就是打开点播播放页):彻底停掉直播并释放解码器。
         // 这是最直接的一层兜底 —— 只要 MainActivity 进后台,直播就不允许再占着 MediaCodec。
-        (fragments[1] as? LiveFragment)?.setPageVisible(false)
+        applyLiveVisible(false)
     }
 
     override fun onResume() {
         super.onResume()
         // 回到主界面:只有当前 tab 确实是直播才恢复(带 300ms 去抖)
-        (fragments[1] as? LiveFragment)?.setPageVisible(currentTab == BottomTab.LIVE)
+        applyLiveVisible(currentTab == BottomTab.LIVE)
+    }
+
+    /**
+     * 订阅页切换了数据源后的统一重载入口。
+     *
+     * 原 SubscriptionActivity 的做法是源一变就 startActivity(CLEAR_TASK) 整个重启 App
+     * (见 SubscriptionActivity.finish()),改造成 Fragment 后这段被丢掉,只剩"首页被
+     * ViewPager 销毁重建时顺带重新 loadConfig"这一条隐式路径 —— 太脆弱。
+     * 这里改成显式通知:清掉各页已缓存的配置态,让它们重新加载。
+     */
+    fun onSubscriptionSourceChanged() {
+        (fragments[0] as? HomeFragment)?.resetForSourceChange()
+        (fragments[1] as? LiveFragment)?.resetForSourceChange()
     }
 
     private fun openDestination(destination: Int) {
@@ -225,7 +259,7 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
         // 直播页:一旦不是当前页就彻底停播并释放解码器。
         // 不能只靠 fragment 的 onPause —— ViewPager2 连续切换时 fragment lifecycle 更新会滞后/丢失,
         // 会出现"在别的 tab 还听得到直播声音",且解码器被占住导致点播起播失败。
-        (fragments[1] as? LiveFragment)?.setPageVisible(tab == BottomTab.LIVE)
+        applyLiveVisible(tab == BottomTab.LIVE)
 
         val nav = mBinding.bottomNavRoot
         val selected = androidx.core.content.ContextCompat.getColor(

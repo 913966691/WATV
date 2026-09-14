@@ -64,6 +64,7 @@ import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.live.TxtSubscribe;
 import com.github.tvbox.osc.callback.EmptyCallback;
 import com.github.tvbox.osc.callback.LoadingCallback;
+import com.kingja.loadsir.core.LoadLayout;
 import com.kingja.loadsir.core.LoadService;
 import com.kingja.loadsir.core.LoadSir;
 import com.google.gson.JsonArray;
@@ -166,7 +167,20 @@ public class LiveFragment extends Fragment implements LiveHost {
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        mRootView = inflater.inflate(R.layout.fragment_live, container, false);
+        // LoadSir 不能用 fragment 的根视图当注册目标。
+        // ViewTarget.replaceView() 会把目标 view 从它的 parent 里摘出来,再换成一个 LoadLayout 塞回去;
+        // 若目标就是根视图,fragment 的 mView 就不再是容器的直接子 view,
+        // FragmentManager 销毁视图时 container.removeView(mView) 会变成空操作 —— 旧的 LoadLayout
+        // 永远留在 ViewPager2 的容器里,它持有的 callback view 也一直挂着 parent,
+        // 下次 showCallback() 再 addView 就会抛 "The specified child already has a parent"。
+        // 这里套一层空容器,让 live_root 始终有 parent,LoadLayout 挂在容器里、随视图一起销毁。
+        View inner = inflater.inflate(R.layout.fragment_live, container, false);
+        FrameLayout wrapper = new FrameLayout(inner.getContext());
+        wrapper.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        wrapper.addView(inner, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        mRootView = wrapper;
         return mRootView;
     }
 
@@ -174,6 +188,9 @@ public class LiveFragment extends Fragment implements LiveHost {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         sInstance = new WeakReference<>(this);
+        // 诊断:统计视图创建次数。快速切 tab 时若这里疯狂自增,说明 ViewPager2 在
+        // 反复销毁重建本 fragment(每次重建都会重新拉直播源 + 重新绑定播放器)。
+        Log.d(TAG_LIVEVIS, "onViewCreated #" + (++sCreateCount));
         epgStringAddress = Hawk.get(HawkConfig.EPG_URL, "");
         if (epgStringAddress == null || epgStringAddress.length() < 5)
             epgStringAddress = "http://epg.51zmt.top:8000/api/diyp/";
@@ -213,8 +230,17 @@ public class LiveFragment extends Fragment implements LiveHost {
         initLiveChannelView();
         initSettingGroupView();
         initSettingItemView();
-        initLiveChannelList();
+        // 注意:initLiveChannelList() 不在这里无条件调用。
+        // 若本 fragment 在 ApiConfig 就绪前就被创建(例如冷启动直达直播页),
+        // getChannelGroupList() 会是空的,会误判成"暂无直播频道"。
+        // 改为:数据已加载过就直接重新绑定到新 view,否则等首次切到直播页再拉。
         initLiveSettingGroupList();
+        if (!liveChannelGroupList.isEmpty()) {
+            showSuccess();
+            initLiveState();
+        } else {
+            channelUiBound = false;
+        }
     }
 
     private void showBottomEpg() {
@@ -321,6 +347,10 @@ public class LiveFragment extends Fragment implements LiveHost {
     private static WeakReference<LiveFragment> sInstance = null;
     /** 直播可见性诊断日志,复现"切走后仍在播"问题时抓 logcat 用 */
     private static final String TAG_LIVEVIS = "LiveVis";
+    private static int sCreateCount = 0;
+    private static int sDestroyCount = 0;
+    /** 频道数据是否已绑定到当前 view。视图重建后会置 false,需要重新绑定/重新加载 */
+    private boolean channelUiBound = false;
 
     /**
      * 唯一的"起播"任务,只有它允许被延迟和取消。
@@ -361,11 +391,33 @@ public class LiveFragment extends Fragment implements LiveHost {
         pageVisible = visible;
         mHandler.removeCallbacks(mStartRun);
         if (visible) {
+            // 懒加载直播源:首次进入(或视图重建后)才去 ApiConfig 取频道。
+            // 列表仍为空时会随每次进入重试,配置晚到也能自愈。
+            if (!channelUiBound && mLoadService != null) {
+                if (liveChannelGroupList.isEmpty()) {
+                    initLiveChannelList();
+                } else {
+                    showSuccess();
+                    initLiveState();
+                }
+            }
             mHandler.postDelayed(mStartRun, 300); // 快速滑过直播页时不必起播
         } else {
             applyPageVisible(false);              // 同步释放,不可被取消
         }
         Log.d(TAG_LIVEVIS, "setPageVisible " + visible + " liveReleased=" + liveReleased);
+    }
+
+    /**
+     * 订阅页切换数据源后由 MainActivity 调用:丢弃旧频道列表,下次进直播页重新加载。
+     * 这里刻意不立即拉源 —— 此时 ApiConfig 的重载还是异步的,立刻取多半是空,
+     * 交给下次 setPageVisible(true) 的重试逻辑更稳。
+     */
+    public void resetForSourceChange() {
+        liveChannelGroupList.clear();
+        channelUiBound = false;
+        noLiveChannelsShown = false;
+        mHandler.removeCallbacks(mStartRun);
     }
 
     public static void stopLivePlayback() {
@@ -404,6 +456,10 @@ public class LiveFragment extends Fragment implements LiveHost {
             // 频道列表还没加载完就被切走了(它的回调会检查 pageVisible,不会偷偷起播)
             return;
         }
+        if (liveChannelGroupList.isEmpty()) {
+            // 源已切换、列表被清空但还没重新加载完 —— 此时任何下标都是旧的,不能拿来起播
+            return;
+        }
         livePlayerManager.getDefaultLiveChannelPlayer(mVideoView);
         int groupIndex = currentChannelGroupIndex;
         int channelIndex = currentLiveChannelIndex;
@@ -413,6 +469,8 @@ public class LiveFragment extends Fragment implements LiveHost {
 
     @Override
     public void onDestroyView() {
+        Log.d(TAG_LIVEVIS, "onDestroyView #" + (++sDestroyCount));
+        channelUiBound = false;
         mHandler.removeCallbacksAndMessages(null);
         if (sInstance != null && sInstance.get() == this) sInstance = null;
         if (mVideoView != null) {
@@ -470,6 +528,8 @@ public class LiveFragment extends Fragment implements LiveHost {
     };
 
     private boolean playChannel(int channelGroupIndex, int liveChannelIndex, boolean changeSource) {
+        if (mVideoView == null) return false;
+        if (currentLiveChannelItem == null && changeSource) return false;
         if ((channelGroupIndex == currentChannelGroupIndex && liveChannelIndex == currentLiveChannelIndex && !changeSource)
                 || (changeSource && currentLiveChannelItem.getSourceNum() == 1)) {
             return true;
@@ -477,9 +537,20 @@ public class LiveFragment extends Fragment implements LiveHost {
         mVideoView.release();
         liveReleased = true;
         if (!changeSource) {
+            ArrayList<LiveChannelItem> channels = getLiveChannels(channelGroupIndex);
+            // 切源后旧索引可能越界(新源的分组/频道数更少),越界就放弃本次起播,
+            // 等下次进入直播页重新加载列表后再播 —— 绝不能拿越界下标去 get()。
+            if (liveChannelIndex < 0 || liveChannelIndex >= channels.size()) {
+                Log.w(TAG_LIVEVIS, "playChannel out of range: group=" + channelGroupIndex
+                        + " ch=" + liveChannelIndex + " size=" + channels.size());
+                currentChannelGroupIndex = channelGroupIndex;
+                currentLiveChannelIndex = -1;
+                currentLiveChannelItem = null;
+                return false;
+            }
             currentChannelGroupIndex = channelGroupIndex;
             currentLiveChannelIndex = liveChannelIndex;
-            currentLiveChannelItem = getLiveChannels(currentChannelGroupIndex).get(currentLiveChannelIndex);
+            currentLiveChannelItem = channels.get(liveChannelIndex);
             Hawk.put(HawkConfig.LIVE_CHANNEL, currentLiveChannelItem.getChannelName());
             livePlayerManager.getLiveChannelPlayer(mVideoView, currentLiveChannelItem.getChannelName());
         }
@@ -511,6 +582,7 @@ public class LiveFragment extends Fragment implements LiveHost {
     private void playNext() {
         if (!isCurrentLiveChannelValid()) return;
         Integer[] groupChannelIndex = getNextChannel(1);
+        if (groupChannelIndex == null) return;
         playChannel(groupChannelIndex[0], groupChannelIndex[1], false);
     }
 
@@ -678,6 +750,7 @@ public class LiveFragment extends Fragment implements LiveHost {
             if (currentLiveChannelItem.getSourceNum() == currentLiveChangeSourceTimes) {
                 currentLiveChangeSourceTimes = 0;
                 Integer[] groupChannelIndex = getNextChannel(Hawk.get(HawkConfig.LIVE_CHANNEL_REVERSE, false) ? -1 : 1);
+                if (groupChannelIndex == null) return;
                 playChannel(groupChannelIndex[0], groupChannelIndex[1], false);
             } else {
                 playNextSource();
@@ -958,6 +1031,10 @@ public class LiveFragment extends Fragment implements LiveHost {
     }
 
     private void initLiveState() {
+        // 频道加载成功:复位"暂无直播频道"弹窗的一次性标志,
+        // 否则它一旦被误触发(例如配置还没加载完就进来)就再也不会恢复。
+        noLiveChannelsShown = false;
+        channelUiBound = true;
         String lastChannelName = Hawk.get(HawkConfig.LIVE_CHANNEL, "");
 
         int lastChannelGroupIndex = -1;
@@ -1089,6 +1166,8 @@ public class LiveFragment extends Fragment implements LiveHost {
     }
 
     private boolean isNeedInputPassword(int groupIndex) {
+        // 切源后列表会被清空重建,此时索引可能已越界 —— 没有分组就谈不上密码
+        if (groupIndex < 0 || groupIndex >= liveChannelGroupList.size()) return false;
         return !liveChannelGroupList.get(groupIndex).getGroupPassword().isEmpty()
                 && !isPasswordConfirmed(groupIndex);
     }
@@ -1102,6 +1181,8 @@ public class LiveFragment extends Fragment implements LiveHost {
     }
 
     private ArrayList<LiveChannelItem> getLiveChannels(int groupIndex) {
+        // 越界一律返回空列表(切源后列表清空重建期间会发生),不能让它走到 get() 崩掉
+        if (groupIndex < 0 || groupIndex >= liveChannelGroupList.size()) return new ArrayList<>();
         if (!isNeedInputPassword(groupIndex)) {
             return liveChannelGroupList.get(groupIndex).getLiveChannels();
         } else {
@@ -1110,6 +1191,8 @@ public class LiveFragment extends Fragment implements LiveHost {
     }
 
     private Integer[] getNextChannel(int direction) {
+        // 列表为空(切源后尚未重新加载)时无从推算下一个频道
+        if (liveChannelGroupList.isEmpty()) return null;
         int channelGroupIndex = currentChannelGroupIndex;
         int liveChannelIndex = currentLiveChannelIndex;
 
@@ -1281,7 +1364,11 @@ public class LiveFragment extends Fragment implements LiveHost {
 
     // ---- LoadSir(Fragment 版,复制 BaseActivity 能力) ----
     private void setLoadSir(View view) {
-        if (mLoadService == null) {
+        if (mLoadService == null && view != null) {
+            // 二次注册前先把可能残留的旧 LoadLayout 摘掉,避免同一目标被嵌套包两层
+            if (view.getParent() instanceof LoadLayout) {
+                ((ViewGroup) view.getParent()).removeView(view);
+            }
             mLoadService = LoadSir.getDefault().register(view, new com.kingja.loadsir.callback.Callback.OnReloadListener() {
                 @Override
                 public void onReload(View v) {
@@ -1290,21 +1377,54 @@ public class LiveFragment extends Fragment implements LiveHost {
         }
     }
 
+    /**
+     * 显示 LoadSir 状态页。
+     *
+     * LoadLayout 内部只做 removeViewAt(1),一旦视图层次里残留了旧的 callback view(比如
+     * fragment 视图被重建过)就会抛 "The specified child already has a parent" 直接崩 App。
+     * 这里在显示前把 LoadLayout 里除 successView 之外的子 view 全部摘掉(removeView 会清掉
+     * child.mParent),再做兜底 catch —— 状态页显示失败不该让整个应用崩掉。
+     */
+    private void showCallbackSafe(Class<? extends com.kingja.loadsir.callback.Callback> callback) {
+        if (mLoadService == null) return;
+        try {
+            ViewGroup loadLayout = mLoadService.getLoadLayout();
+            if (loadLayout != null) {
+                while (loadLayout.getChildCount() > 1) {
+                    loadLayout.removeViewAt(loadLayout.getChildCount() - 1);
+                }
+            }
+            mLoadService.showCallback(callback);
+        } catch (Throwable th) {
+            Log.w(TAG_LIVEVIS, "showCallback failed: " + callback.getSimpleName(), th);
+        }
+    }
+
     private void showLoading() {
         if (mLoadService != null) {
-            mLoadService.showCallback(LoadingCallback.class);
+            showCallbackSafe(LoadingCallback.class);
         }
     }
 
     private void showEmpty() {
         if (null != mLoadService) {
-            mLoadService.showCallback(EmptyCallback.class);
+            showCallbackSafe(EmptyCallback.class);
         }
     }
 
     private void showSuccess() {
         if (null != mLoadService) {
-            mLoadService.showSuccess();
+            try {
+                ViewGroup loadLayout = mLoadService.getLoadLayout();
+                if (loadLayout != null) {
+                    while (loadLayout.getChildCount() > 1) {
+                        loadLayout.removeViewAt(loadLayout.getChildCount() - 1);
+                    }
+                }
+                mLoadService.showSuccess();
+            } catch (Throwable th) {
+                Log.w(TAG_LIVEVIS, "showSuccess failed", th);
+            }
         }
     }
 

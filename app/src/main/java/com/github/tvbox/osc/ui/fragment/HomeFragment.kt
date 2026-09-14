@@ -152,6 +152,21 @@ class HomeFragment : BaseVbFragment<FragmentHomeBinding>() {
         }
     }
 
+    /**
+     * 订阅页切换数据源后由 MainActivity 调用:清掉"配置已就绪"标志,强制重新 loadConfig。
+     *
+     * 视图还在时立刻重载;视图若已被 ViewPager 销毁,标志会保留到下次
+     * onViewCreated → init() → initData() 再生效,两条路都能覆盖。
+     */
+    fun resetForSourceChange() {
+        dataInitOk = false
+        jarInitOk = false
+        onlyConfigChanged = false
+        if (isAdded && view != null) {
+            initData()
+        }
+    }
+
     private fun loadConfig(){
         ApiConfig.get().loadConfig(onlyConfigChanged, object : LoadConfigCallback {
 

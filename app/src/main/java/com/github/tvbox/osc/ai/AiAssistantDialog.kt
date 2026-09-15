@@ -20,6 +20,14 @@ import com.github.tvbox.osc.ui.activity.DetailActivity
 import com.github.tvbox.osc.ui.activity.MainActivity
 import com.github.tvbox.osc.ui.dialog.BaseDialog
 import com.google.android.material.snackbar.Snackbar
+import android.Manifest
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import com.hjq.permissions.OnPermissionCallback
+import com.hjq.permissions.XXPermissions
+import java.util.Locale
+import android.widget.Toast
 
 /**
  * AI助手对话框
@@ -38,6 +46,11 @@ class AiAssistantDialog(context: Context) : BaseDialog(context) {
     private lateinit var ivSettings: ImageView
     private lateinit var llInputArea: LinearLayout
     private lateinit var flLoading: View
+    private lateinit var ivMic: ImageView
+    private lateinit var tvSpeechStatus: TextView
+
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var isListening = false
     
     private lateinit var messageAdapter: MessageAdapter
     private var engine: VideoAssistantEngine? = null
@@ -72,6 +85,10 @@ class AiAssistantDialog(context: Context) : BaseDialog(context) {
         ivSettings = view.findViewById(R.id.iv_settings)
         llInputArea = view.findViewById(R.id.ll_input_area)
         flLoading = view.findViewById(R.id.fl_loading)
+        ivMic = view.findViewById(R.id.iv_mic)
+        tvSpeechStatus = view.findViewById(R.id.tv_speech_status)
+
+        initSpeech()
         
         // 初始化消息列表
         // 卡片点击：带着片源信息跳转到详情页（不直接起播，交由详情页选择集数/线路）
@@ -122,6 +139,14 @@ class AiAssistantDialog(context: Context) : BaseDialog(context) {
         
         ivSend.setOnClickListener {
             sendMessage()
+        }
+
+        ivMic.setOnClickListener {
+            toggleSpeechInput()
+        }
+
+        tvSpeechStatus.setOnClickListener {
+            stopSpeech()
         }
         
         etInput.setOnEditorActionListener { _, actionId, _ ->
@@ -205,6 +230,168 @@ class AiAssistantDialog(context: Context) : BaseDialog(context) {
         Snackbar.make(rvMessages, "$title: $message", Snackbar.LENGTH_LONG).show()
     }
     
+    /**
+     * 初始化语音识别器；设备不支持或上下文缺失时禁用麦克风按钮
+     */
+    private fun initSpeech() {
+        val act = activity
+        if (act == null) {
+            disableMic()
+            Log.d("WATV_AI", "initSpeech: 上下文缺失，禁用语音按钮")
+            return
+        }
+        if (!SpeechRecognizer.isRecognitionAvailable(act)) {
+            Log.d("WATV_AI", "initSpeech: 内联识别不可用，将使用系统 RecognizerIntent 兜底")
+            return
+        }
+        try {
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(act).apply {
+                setRecognitionListener(object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) {
+                        showSpeechStatus()
+                    }
+                    override fun onBeginningOfSpeech() {}
+                    override fun onRmsChanged(rmsdB: Float) {}
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+                    override fun onEndOfSpeech() {}
+                    override fun onError(error: Int) {
+                        finishSpeech()
+                        val msg = getSpeechErrorMessage(error)
+                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        Log.w("WATV_AI", "语音识别错误: $msg")
+                    }
+                    override fun onResults(results: Bundle?) {
+                        fillSpeechText(results)
+                        finishSpeech()
+                    }
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        fillSpeechText(partialResults)
+                    }
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
+            }
+        } catch (e: Exception) {
+            disableMic()
+            Log.e("WATV_AI", "createSpeechRecognizer 失败: ${e.message}")
+        }
+    }
+
+    private fun disableMic() {
+        ivMic.isEnabled = false
+        ivMic.alpha = 0.4f
+    }
+
+    /**
+     * 点击麦克风：切换录音状态（未录音则启动，录音中则停止）
+     */
+    private fun toggleSpeechInput() {
+        if (isListening) {
+            stopSpeech()
+            return
+        }
+        val act = activity ?: run {
+            Toast.makeText(context, "语音功能需要 Activity 上下文", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (SpeechRecognizer.isRecognitionAvailable(act)) {
+            // 内联识别可用，走实时识别（体验更好）
+            if (XXPermissions.isGranted(act, Manifest.permission.RECORD_AUDIO)) {
+                startListening()
+            } else {
+                XXPermissions.with(act)
+                    .permission(Manifest.permission.RECORD_AUDIO)
+                    .request(object : OnPermissionCallback {
+                        override fun onGranted(permissions: List<String>, all: Boolean) {
+                            startListening()
+                        }
+                        override fun onDenied(permissions: List<String>, never: Boolean) {
+                            Toast.makeText(context, "需要麦克风权限才能使用语音输入", Toast.LENGTH_SHORT).show()
+                        }
+                    })
+            }
+        } else {
+            // 兜底：调起系统语音输入 Activity（澎湃 OS / 无内联服务设备）
+            Log.d("WATV_AI", "toggleSpeechInput: 内联不可用，尝试系统 RecognizerIntent 兜底")
+            if (!act.startSpeechRecognition()) {
+                Toast.makeText(context, "当前设备未提供系统语音输入，请使用键盘语音输入", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun startListening() {
+        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(etInput.windowToken, 0)
+        isListening = true
+        showSpeechStatus()
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.SIMPLIFIED_CHINESE.toLanguageTag())
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+        speechRecognizer?.startListening(intent)
+        Log.d("WATV_AI", "startListening: 启动语音识别")
+    }
+
+    private fun stopSpeech() {
+        if (!isListening) return
+        speechRecognizer?.stopListening()
+        finishSpeech()
+        Log.d("WATV_AI", "stopSpeech: 停止语音识别")
+    }
+
+    /**
+     * 把识别结果（部分或最终）回填到输入框
+     */
+    private fun fillSpeechText(results: Bundle?) {
+        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+        if (!matches.isNullOrEmpty()) {
+            val text = matches[0]
+            etInput.setText(text)
+            etInput.setSelection(text.length)
+        }
+    }
+
+    private fun showSpeechStatus() {
+        tvSpeechStatus.visibility = View.VISIBLE
+    }
+
+    private fun hideSpeechStatus() {
+        tvSpeechStatus.visibility = View.GONE
+    }
+
+    private fun finishSpeech() {
+        isListening = false
+        hideSpeechStatus()
+    }
+
+    private fun getSpeechErrorMessage(error: Int): String {
+        return when (error) {
+            SpeechRecognizer.ERROR_AUDIO -> "音频录制错误"
+            SpeechRecognizer.ERROR_CLIENT -> "语音识别出错"
+            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "麦克风权限不足"
+            SpeechRecognizer.ERROR_NETWORK -> "网络错误，请检查网络"
+            SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "网络超时"
+            SpeechRecognizer.ERROR_NO_MATCH -> "没听清，请再说一次"
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "识别服务忙，请稍候"
+            SpeechRecognizer.ERROR_SERVER -> "识别服务异常"
+            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "未检测到语音"
+            else -> "语音识别失败($error)"
+        }
+    }
+
+    /**
+     * MainActivity 的 RecognizerIntent 兜底返回后，把识别文本回填到输入框
+     */
+    fun fillInput(text: String) {
+        if (!isShowing) return
+        etInput.setText(text)
+        etInput.setSelection(text.length)
+        etInput.requestFocus()
+        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.showSoftInput(etInput, 0)
+    }
+
     private fun showSettingsDialog() {
         LlmSettingsDialog(context).show()
     }
@@ -223,6 +410,9 @@ class AiAssistantDialog(context: Context) : BaseDialog(context) {
         // 隐藏键盘
         val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         imm.hideSoftInputFromWindow(etInput.windowToken, 0)
+        // 释放语音识别器，避免 Activity 销毁后泄漏
+        speechRecognizer?.destroy()
+        speechRecognizer = null
         super.dismiss()
     }
 }

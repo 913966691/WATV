@@ -64,7 +64,10 @@ public class MyFragment extends BaseVbFragment<FragmentMyBinding> {
 
     @Override
     protected void init() {
-        mBinding.tvVersion.setText("v"+ AppUtils.getAppVersionName());
+        // 单一事实来源：app/build.gradle 的 versionName，避免多处硬编码不一致
+        String versionName = AppUtils.getAppVersionName();
+        mBinding.tvAppVersion.setText("v" + versionName + " · 视频盒子");
+        mBinding.tvVersion.setText("v" + versionName);
 
         mBinding.addrPlay.setOnClickListener(v ->{
             new XPopup.Builder(getContext())

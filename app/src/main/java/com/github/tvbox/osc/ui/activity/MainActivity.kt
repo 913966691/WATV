@@ -1,9 +1,13 @@
 package com.github.tvbox.osc.ui.activity
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Typeface
 import android.os.Process
+import android.speech.RecognizerIntent
 import android.view.KeyEvent
+import java.util.Locale
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import androidx.viewpager2.widget.ViewPager2
@@ -28,6 +32,7 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
 
     companion object {
         const val EXTRA_START_DESTINATION = "main_start_destination"
+        private const val REQ_SPEECH_RECOGNITION = 1001
     }
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
@@ -40,6 +45,7 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
     private val fragments = listOf(HomeFragment(), LiveFragment(), SubFragment(), MyFragment())
     var useCacheConfig = false
     private var exitTime = 0L
+    private var currentAiDialog: AiAssistantDialog? = null
 
     /**
      * 底部导航 tab 定义。
@@ -310,7 +316,7 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
                 mBinding.vp.setCurrentItem(targetPage, false)
             }
             if (tab == BottomTab.AI) {
-                AiAssistantDialog(this).show()
+                currentAiDialog = AiAssistantDialog(this).apply { show() }
             }
         }
     }
@@ -320,6 +326,63 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
             (fragments[1] as? LiveFragment)?.handleKeyEvent(event)
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    /**
+     * 启动系统语音输入 Activity（RecognizerIntent 兜底），供 AiAssistantDialog 在内联识别不可用时调用。
+     * 返回 true 表示成功调起，false 表示设备上无可用识别 Activity。
+     */
+    fun startSpeechRecognition(): Boolean {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.SIMPLIFIED_CHINESE.toLanguageTag())
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "请说话，识别后会自动填入输入框")
+        }
+        // 先检查是否有 Activity 能处理该 Intent（澎湃 OS 等系统可能移除了识别 Activity）
+        if (intent.resolveActivity(packageManager) == null) {
+            android.util.Log.w("WATV_AI", "startSpeechRecognition: 无 Activity 处理 RecognizerIntent")
+            return false
+        }
+        return try {
+            startActivityForResult(intent, REQ_SPEECH_RECOGNITION)
+            true
+        } catch (e: ActivityNotFoundException) {
+            android.util.Log.w("WATV_AI", "startSpeechRecognition: ActivityNotFoundException ${e.message}")
+            false
+        } catch (e: SecurityException) {
+            android.util.Log.w("WATV_AI", "startSpeechRecognition: SecurityException ${e.message}")
+            false
+        } catch (e: Exception) {
+            android.util.Log.e("WATV_AI", "startSpeechRecognition: 启动失败 ${e.message}", e)
+            false
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_SPEECH_RECOGNITION) return
+        when (resultCode) {
+            Activity.RESULT_OK -> {
+                val matches = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                val text = matches?.firstOrNull()
+                if (!text.isNullOrEmpty()) {
+                    currentAiDialog?.fillInput(text)
+                } else {
+                    ToastUtils.showShort("未识别到内容")
+                }
+            }
+            Activity.RESULT_CANCELED -> {
+                // 澎湃 OS 等系统语音服务内部初始化失败时通常会返回 CANCELED，此时给用户明确提示
+                val error = data?.getIntExtra(RecognizerIntent.EXTRA_CONFIDENCE_SCORES, -1)
+                android.util.Log.w("WATV_AI", "onActivityResult: 系统语音输入被取消/失败 errorExtra=$error")
+                ToastUtils.showLong("系统语音输入失败，建议检查网络/权限，或使用键盘语音输入")
+            }
+            else -> {
+                android.util.Log.w("WATV_AI", "onActivityResult: 系统语音输入返回未知结果码 $resultCode")
+                ToastUtils.showShort("系统语音输入未返回结果")
+            }
+        }
     }
 
     override fun switchToTab(tab: Int) {

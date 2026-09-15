@@ -120,7 +120,7 @@ public class LiveFragment extends Fragment implements LiveHost {
     private LiveSettingItemAdapter liveSettingItemAdapter;
     private List<LiveSettingGroup> liveSettingGroupList = new ArrayList<>();
 
-    public static int currentChannelGroupIndex = 0;
+    private int currentChannelGroupIndex = 0;
     private Handler mHandler = new Handler(Looper.getMainLooper());
 
     private List<LiveChannelGroup> liveChannelGroupList = new ArrayList<>();
@@ -391,9 +391,9 @@ public class LiveFragment extends Fragment implements LiveHost {
         pageVisible = visible;
         mHandler.removeCallbacks(mStartRun);
         if (visible) {
-            // 懒加载直播源:首次进入(或视图重建后)才去 ApiConfig 取频道。
-            // 列表仍为空时会随每次进入重试,配置晚到也能自愈。
-            if (!channelUiBound && mLoadService != null) {
+            // 每次进入都重置:归位首个频段、清掉 Hawk 上次频道记忆、停播(不自动续播)。
+            // 列表为空时随每次进入重试,配置晚到也能自愈。
+            if (mLoadService != null) {
                 if (liveChannelGroupList.isEmpty()) {
                     initLiveChannelList();
                 } else {
@@ -401,7 +401,7 @@ public class LiveFragment extends Fragment implements LiveHost {
                     initLiveState();
                 }
             }
-            mHandler.postDelayed(mStartRun, 300); // 快速滑过直播页时不必起播
+            // 不再 postDelayed 起播:用户要求进入即停播,等手动选台
         } else {
             applyPageVisible(false);              // 同步释放,不可被取消
         }
@@ -1030,38 +1030,34 @@ public class LiveFragment extends Fragment implements LiveHost {
                 .show();
     }
 
+    /**
+     * 归位直播界面的初始状态:清掉 Hawk 上次频道记忆、回到首个(无密码)频段、停播。
+     * 每次进入直播页都会调用,因此"离开再回来"必然从干净态开始,不再接上次的台。
+     */
     private void initLiveState() {
-        // 频道加载成功:复位"暂无直播频道"弹窗的一次性标志,
-        // 否则它一旦被误触发(例如配置还没加载完就进来)就再也不会恢复。
+        // 复位"暂无直播频道"的一次性标志,否则一旦被误触发就再也不会恢复
         noLiveChannelsShown = false;
         channelUiBound = true;
-        String lastChannelName = Hawk.get(HawkConfig.LIVE_CHANNEL, "");
 
-        int lastChannelGroupIndex = -1;
-        int lastLiveChannelIndex = -1;
-        for (LiveChannelGroup liveChannelGroup : liveChannelGroupList) {
-            for (LiveChannelItem liveChannelItem : liveChannelGroup.getLiveChannels()) {
-                if (liveChannelItem.getChannelName().equals(lastChannelName)) {
-                    lastChannelGroupIndex = liveChannelGroup.getGroupIndex();
-                    lastLiveChannelIndex = liveChannelItem.getChannelIndex();
-                    break;
-                }
-            }
-            if (lastChannelGroupIndex != -1) break;
-        }
-        if (lastChannelGroupIndex == -1) {
-            lastChannelGroupIndex = getFirstNoPasswordChannelGroup();
-            if (lastChannelGroupIndex == -1)
-                lastChannelGroupIndex = 0;
-            lastLiveChannelIndex = 0;
-        }
+        // 彻底重置:清掉持久化的上次频道,冷启动和 tab 切换都不记忆
+        Hawk.delete(HawkConfig.LIVE_CHANNEL);
+
+        // 频段选择归零到首个无密码分组(左侧频道分组)
+        currentChannelGroupIndex = getFirstNoPasswordChannelGroup();
+        if (currentChannelGroupIndex == -1) currentChannelGroupIndex = 0;
+        // 当前播放频道清空,停播(等用户手动选台)
+        currentLiveChannelIndex = -1;
+        currentLiveChannelItem = null;
+        liveReleased = true;
 
         livePlayerManager.init(mVideoView);
 
         tvRightSettingLayout.setVisibility(View.INVISIBLE);
 
+        // 强制触发 selectChannelGroup(否则选中项恰好等于当前值时会被短路跳过)
+        liveChannelGroupAdapter.setSelectedGroupIndex(-1);
         liveChannelGroupAdapter.setNewData(liveChannelGroupList);
-        selectChannelGroup(lastChannelGroupIndex, false, lastLiveChannelIndex);
+        selectChannelGroup(currentChannelGroupIndex, false, -1); // liveChannelIndex=-1 → 不起播
     }
 
     private boolean isListOrSettingLayoutVisible() {

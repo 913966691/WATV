@@ -21,6 +21,7 @@ import com.github.tvbox.osc.ui.fragment.HomeFragment
 import com.github.tvbox.osc.ui.fragment.LiveFragment
 import com.github.tvbox.osc.ui.fragment.MyFragment
 import com.github.tvbox.osc.ui.fragment.SubFragment
+import com.github.tvbox.osc.ai.AiAssistantDialog
 import kotlin.system.exitProcess
 
 class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
@@ -45,11 +46,9 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
      * 自绘导航(见 include_bottom_navigation.xml),每个 tab 用 weight=1 等宽,
      * 规避 Material BottomNavigationView 在横屏大屏下 item 不铺满、左右边距不对称的问题。
      *
-     * 注意 tab 顺序要和 ViewPager 的 2 个 fragment (HomeFragment / MyFragment) 对应:
-     *  - 首页 (vp 0) / 我的 (vp 1) 是可切换的 fragment
-     *  - 直播 / 订阅 是跳转独立 Activity,不占 ViewPager 页
+     * 注意:ViewPager 仍保持 4 页(首页/直播/订阅/我的),AI 助手 tab 仅触发对话框,不占用 ViewPager 页。
      */
-    private enum class BottomTab { HOME, LIVE, SUBSCRIBE, MY }
+    private enum class BottomTab { HOME, LIVE, AI, SUBSCRIBE, MY }
 
     private var currentTab: BottomTab = BottomTab.HOME
 
@@ -192,6 +191,7 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
                 selectTab(BottomTab.HOME)
             }
             BottomTab.SUBSCRIBE -> selectTab(BottomTab.HOME)
+            BottomTab.AI -> selectTab(BottomTab.HOME)
             BottomTab.MY -> {
                 selectTab(BottomTab.HOME)
             }
@@ -232,9 +232,9 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
     }
 
     /**
-     * 自绘底部导航:绑定 4 个 tab 点击事件 + 初始选中态。
+     * 自绘底部导航:绑定 5 个 tab 点击事件 + 初始选中态。
      *
-     * 用 weight=1 的 LinearLayout 子项实现等宽,横屏大屏下 4 个 tab 必定铺满容器宽度,
+     * 用 weight=1 的 LinearLayout 子项实现等宽,横屏大屏下 5 个 tab 必定铺满容器宽度,
      * 左右边距严格对称,不再出现 Material BottomNavigationView "tab 挤在中间"的问题。
      */
     private fun setupBottomNav() {
@@ -242,6 +242,7 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
 
         nav.tabHome.setOnClickListener { selectTab(BottomTab.HOME) }
         nav.tabLive.setOnClickListener { selectTab(BottomTab.LIVE) }
+        nav.tabAi.setOnClickListener { selectTab(BottomTab.AI) }
         nav.tabSubscribe.setOnClickListener { selectTab(BottomTab.SUBSCRIBE) }
         nav.tabMy.setOnClickListener { selectTab(BottomTab.MY) }
 
@@ -279,6 +280,12 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
         nav.tvLive.setTextColor(if (liveActive) selected else normal)
         nav.tvLive.setTypeface(null, if (liveActive) Typeface.BOLD else Typeface.NORMAL)
 
+        // AI 助手 (不对应 ViewPager 页,点击弹出对话框)
+        val aiActive = tab == BottomTab.AI
+        nav.ivAi.setColorFilter(if (aiActive) selected else normal)
+        nav.tvAi.setTextColor(if (aiActive) selected else normal)
+        nav.tvAi.setTypeface(null, if (aiActive) Typeface.BOLD else Typeface.NORMAL)
+
         // 订阅 (ViewPager 第 2 页)
         val subActive = tab == BottomTab.SUBSCRIBE
         nav.ivSubscribe.setColorFilter(if (subActive) selected else normal)
@@ -297,9 +304,13 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
                 BottomTab.LIVE -> 1
                 BottomTab.SUBSCRIBE -> 2
                 BottomTab.MY -> 3
+                BottomTab.AI -> -1 // AI 助手不对应 ViewPager 页,点击时弹出对话框
             }
-            if (mBinding.vp.currentItem != targetPage) {
+            if (targetPage >= 0 && mBinding.vp.currentItem != targetPage) {
                 mBinding.vp.setCurrentItem(targetPage, false)
+            }
+            if (tab == BottomTab.AI) {
+                AiAssistantDialog(this).show()
             }
         }
     }

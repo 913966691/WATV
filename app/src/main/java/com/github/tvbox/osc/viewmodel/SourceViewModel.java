@@ -562,6 +562,60 @@ public class SourceViewModel extends ViewModel {
             searchResult.postValue(null);
         }
     }
+    /**
+     * 同步搜索单个源（供 AI 助手使用）。
+     * 复用 xml()/json() 解析逻辑，但传入独立的 MutableLiveData，
+     * 避免触发 UI 层监听的 EventBus(TYPE_SEARCH_RESULT)。
+     * @return 影片列表（已带 sourceKey），无结果返回 null
+     */
+    public List<Movie.Video> searchSync(String sourceKey, String wd) {
+        SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
+        if (sourceBean == null || TextUtils.isEmpty(wd)) return null;
+        int type = sourceBean.getType();
+        MutableLiveData<AbsXml> result = new MutableLiveData<>();
+        try {
+            if (type == 3) {
+                Spider sp = ApiConfig.get().getCSP(sourceBean);
+                String search = sp.searchContent(wd, false);
+                if (!TextUtils.isEmpty(search)) {
+                    AbsXml data = json(result, search, sourceBean.getKey());
+                    return data != null && data.movie != null && data.movie.videoList != null
+                            ? data.movie.videoList : null;
+                }
+            } else if (type == 0 || type == 1) {
+                okhttp3.Response resp = OkGo.<String>get(sourceBean.getApi())
+                        .tag("ai_search_" + sourceBean.getKey())
+                        .params("wd", wd)
+                        .params(type == 1 ? "ac" : null, type == 1 ? "detail" : null)
+                        .execute();
+                if (resp != null && resp.isSuccessful() && resp.body() != null) {
+                    String body = resp.body().string();
+                    AbsXml data = type == 0
+                            ? xml(result, body, sourceBean.getKey())
+                            : json(result, body, sourceBean.getKey());
+                    return data != null && data.movie != null && data.movie.videoList != null
+                            ? data.movie.videoList : null;
+                }
+            } else if (type == 4) {
+                okhttp3.Response resp = OkGo.<String>get(sourceBean.getApi())
+                        .tag("ai_search_" + sourceBean.getKey())
+                        .params("wd", wd)
+                        .params("ac", "detail")
+                        .params("quick", "false")
+                        .execute();
+                if (resp != null && resp.isSuccessful() && resp.body() != null) {
+                    String body = resp.body().string();
+                    AbsXml data = json(result, body, sourceBean.getKey());
+                    return data != null && data.movie != null && data.movie.videoList != null
+                            ? data.movie.videoList : null;
+                }
+            }
+        } catch (Throwable th) {
+            th.printStackTrace();
+        }
+        return null;
+    }
+
     // searchContent
     public void getQuickSearch(String sourceKey, String wd) {
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);

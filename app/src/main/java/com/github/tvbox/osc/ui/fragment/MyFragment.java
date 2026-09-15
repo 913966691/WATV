@@ -18,6 +18,7 @@ import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.base.BaseLazyFragment;
 import com.github.tvbox.osc.base.BaseVbFragment;
 import com.github.tvbox.osc.databinding.FragmentMyBinding;
+import com.github.tvbox.osc.ai.LlmSettingsDialog;
 import com.github.tvbox.osc.ui.activity.CollectActivity;
 import com.github.tvbox.osc.ui.activity.DetailActivity;
 import com.github.tvbox.osc.ui.activity.HistoryActivity;
@@ -81,6 +82,11 @@ public class MyFragment extends BaseVbFragment<FragmentMyBinding> {
             if (mSettingLauncher != null) {
                 mSettingLauncher.launch(new Intent(requireContext(), SettingActivity.class));
             }
+        });
+
+        mBinding.tvAiAssistant.setOnClickListener(v -> {
+            // 在"我的"页面中配置 LLM 模型信息
+            new LlmSettingsDialog(requireActivity()).show();
         });
 
         mBinding.tvHistory.setOnClickListener(v -> jumpActivity(HistoryActivity.class));

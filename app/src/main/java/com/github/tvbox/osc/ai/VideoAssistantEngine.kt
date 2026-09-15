@@ -2,11 +2,15 @@ package com.github.tvbox.osc.ai
 
 import android.content.Intent
 import android.os.Bundle
-import com.github.tvbox.osc.cache.RoomDataManger
+import android.util.Log
+import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.VodInfo
+import com.github.tvbox.osc.cache.RoomDataManger
 import com.github.tvbox.osc.ui.activity.DetailActivity
 import com.github.tvbox.osc.ui.activity.MainActivity
+import com.github.tvbox.osc.viewmodel.SourceViewModel
 import com.orhanobut.hawk.Hawk
+import com.google.gson.Gson
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -15,6 +19,28 @@ import java.util.*
  * 处理Function Calling的工具执行
  */
 class VideoAssistantEngine(private val activity: MainActivity) {
+    
+    companion object {
+        // 失败源短期黑名单：记录源 key -> 上次失败时间戳，冷却期内跳过该源
+        private val failedSources = mutableMapOf<String, Long>()
+        private const val SOURCE_COOLDOWN_MS = 5 * 60 * 1000L // 5 分钟
+
+        @Synchronized
+        fun isSourceInCooldown(key: String): Boolean {
+            val last = failedSources[key] ?: return false
+            return System.currentTimeMillis() - last < SOURCE_COOLDOWN_MS
+        }
+
+        @Synchronized
+        fun markSourceFailed(key: String) {
+            failedSources[key] = System.currentTimeMillis()
+        }
+
+        @Synchronized
+        fun markSourceSucceeded(key: String) {
+            failedSources.remove(key)
+        }
+    }
     
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
@@ -85,7 +111,11 @@ class VideoAssistantEngine(private val activity: MainActivity) {
                     ),
                     "episode_index" to mapOf(
                         "type" to "integer",
-                        "description" to "集数索引，从0开始。-1表示续播（使用上次进度）"
+                        "description" to "集数索引。-1=续播(使用历史进度)；-2=最新一集；>=0=指定集(从0开始)"
+                    ),
+                    "play_flag" to mapOf(
+                        "type" to "string",
+                        "description" to "可选，播放线路名称（如'线路1'）。不填则用默认线路"
                     )
                 ),
                 "required" to listOf("vod_id", "source_key")
@@ -132,10 +162,13 @@ class VideoAssistantEngine(private val activity: MainActivity) {
 
 使用工具时的注意事项：
 - 搜索时，如果用户没有指定类型，默认搜索全部
-- 播放时，episode_index=-1表示续播（使用上次进度）
-- 续播时，先从历史记录中找到对应视频，然后使用play_video播放
-- 如果用户说"继续看XXX"或"接着看XXX"，先搜索历史记录，找到后直接播放
-- 如果用户说"看最新的XXX"或"看最新的第X集"，先搜索，然后播放最后一集
+- 搜索后会返回多个片源，每个含 vod_id 和 source_key，播放时必须带上这两个值
+- 播放时 episode_index 含义：-1=续播(用历史进度)；-2=最新一集；>=0=指定集(从0开始)
+- 续播时，先调用 get_play_history 找到对应视频，再用 play_video 播放(episode_index=-1)
+- 如果用户说"继续看XXX"或"接着看XXX"，先查历史，找到后播放
+- 如果用户说"看最新的XXX"，先 search_videos，再用 play_video(episode_index=-2) 播放最新一集
+- 如果用户说"看XXX第N集"，先 search_videos，再用 play_video(episode_index=N-1) 播放指定集
+- 播放前请简短告知用户即将播放的片名和集数
 
 回复风格：
 - 简洁友好，不超过100字
@@ -164,18 +197,22 @@ class VideoAssistantEngine(private val activity: MainActivity) {
      */
     private fun callLLM(callback: ProcessCallback, retryCount: Int = 0) {
         if (retryCount > 3) {
+            Log.e("WATV_AI", "重试次数过多，终止")
             callback.onError("重试次数过多，请检查LLM配置")
             return
         }
-        
+
+        Log.d("WATV_AI", "callLLM 入口: retry=$retryCount historySize=${conversationHistory.size}")
+
         val client = LlmClient()
         val messages = conversationHistory.takeLast(maxHistorySize)
-        
+
         client.chat(messages, tools, object : LlmClient.ChatCallback {
             override fun onSuccess(response: ChatResponse) {
                 scope.launch {
                     // 如果有工具调用
                     if (response.hasToolCalls()) {
+                        Log.d("WATV_AI", "LLM 返回工具调用: ${response.toolCalls!!.map { it.name }}")
                         // 添加助手消息（包含tool_calls）
                         conversationHistory.add(
                             ChatMessage.assistant(response.content, response.toolCalls)
@@ -190,12 +227,23 @@ class VideoAssistantEngine(private val activity: MainActivity) {
                                 ChatMessage.tool(toolCallId, name, result)
                             )
                         }
-                        
+
+                        // 若本轮包含搜索结果，回传给对话框以卡片形式展示
+                        toolResults.forEach { (_, name, result) ->
+                            if (name == "search_videos") {
+                                parseSearchResults(result)?.let {
+                                    Log.d("WATV_AI", "回传搜索结果卡片: ${it.size} 条")
+                                    callback.onSearchResults(it)
+                                }
+                            }
+                        }
+
                         // 继续调用LLM处理工具结果
                         callLLM(callback, retryCount + 1)
                     } else {
                         // 普通回复
                         val content = response.content ?: "抱歉，我没有理解您的意思"
+                        Log.d("WATV_AI", "LLM 普通回复: '${(content).take(60)}'")
                         conversationHistory.add(ChatMessage.assistant(content))
                         callback.onResponse(content)
                     }
@@ -203,6 +251,7 @@ class VideoAssistantEngine(private val activity: MainActivity) {
             }
             
             override fun onError(error: String) {
+                Log.e("WATV_AI", "callLLM onError: $error")
                 scope.launch {
                     callback.onError(error)
                 }
@@ -232,27 +281,54 @@ class VideoAssistantEngine(private val activity: MainActivity) {
     }
     
     /**
-     * 执行搜索视频
+     * 执行搜索视频：遍历所有已配置源，聚合结果
      */
     private suspend fun executeSearchVideos(arguments: Map<String, Any>): String {
         return withContext(Dispatchers.IO) {
             try {
-                val keyword = arguments["keyword"] as? String ?: return@withContext """{"error": "缺少keyword参数"}"""
-                val type = arguments["type"] as? String ?: "all"
-                
-                // 搜索逻辑待接入 SourceViewModel（Phase 2），此处先返回提示
-                // val sources = ApiConfig.get().getSources()
-                // if (sources.isEmpty()) {
-                //     return@withContext """{"error": "没有可用的搜索源"}"""
-                // }
-
-                // 执行搜索（简化版，实际应该异步执行）
+                val keyword = arguments["keyword"] as? String
+                    ?: return@withContext """{"error": "缺少keyword参数"}"""
+                val vm = SourceViewModel()
+                val sources = ApiConfig.get().getSourceBeanList()
+                if (sources.isEmpty()) {
+                    return@withContext """{"count": 0, "message": "当前没有可用的视频源，请先在设置中配置订阅源"}"""
+                }
                 val results = mutableListOf<Map<String, Any>>()
-                
-                // 这里暂时返回提示，实际搜索逻辑较复杂，需要调用SourceViewModel
-                // 后续会实现完整的搜索逻辑
-                return@withContext """{"message": "搜索'$keyword'中...", "keyword": "$keyword", "type": "$type"}"""
-                
+                for (source in sources) {
+                    val key = source.getKey()
+                    // 冷却期内跳过此前连续失败的源，避免反复请求已失效的源拖慢搜索
+                    if (isSourceInCooldown(key)) {
+                        Log.d("WATV_AI", "搜索源[$key]处于冷却期，跳过")
+                        continue
+                    }
+                    try {
+                        val list = vm.searchSync(key, keyword)
+                        if (!list.isNullOrEmpty()) {
+                            markSourceSucceeded(key)
+                            for (v in list) {
+                                if (results.size >= 20) break
+                                results.add(mapOf(
+                                    "vod_id" to (v.id ?: ""),
+                                    "source_key" to (v.sourceKey ?: key),
+                                    "title" to (v.name ?: ""),
+                                    "remark" to (v.note ?: "")
+                                ))
+                            }
+                        }
+                    } catch (e: Throwable) {
+                        // 单个源失败不影响其他源；记录源标识与原因便于排查失效源
+                        Log.w("WATV_AI", "搜索源[$key]失败: ${e.message}")
+                        markSourceFailed(key)
+                    }
+                }
+                if (results.isEmpty()) {
+                    return@withContext com.google.gson.Gson().toJson(
+                        mapOf("count" to 0, "message" to "未找到与'$keyword'相关的片源")
+                    )
+                }
+                return@withContext com.google.gson.Gson().toJson(
+                    mapOf("count" to results.size, "results" to results)
+                )
             } catch (e: Exception) {
                 """{"error": "搜索失败: ${e.message}"}"""
             }
@@ -265,7 +341,7 @@ class VideoAssistantEngine(private val activity: MainActivity) {
     private suspend fun executeGetHistory(arguments: Map<String, Any>): String {
         return withContext(Dispatchers.IO) {
             try {
-                val limit = (arguments["limit"] as? Int) ?: 10
+                val limit = toIntArg(arguments["limit"], 10)
                 val titleFilter = arguments["title"] as? String
                 
                 val history = RoomDataManger.getAllVodRecord(100)
@@ -305,8 +381,8 @@ class VideoAssistantEngine(private val activity: MainActivity) {
     private suspend fun executeGetFavorites(arguments: Map<String, Any>): String {
         return withContext(Dispatchers.IO) {
             try {
-                val limit = (arguments["limit"] as? Int) ?: 10
-                
+                val limit = toIntArg(arguments["limit"], 10)
+
                 val favorites = RoomDataManger.getAllVodCollect()
                 
                 val result = favorites.take(limit).map { collect ->
@@ -331,41 +407,60 @@ class VideoAssistantEngine(private val activity: MainActivity) {
     }
     
     /**
-     * 执行播放视频
+     * 执行播放视频：通过 DetailActivity 的 autoPlay 意图直接起播
+     * episode_index: -1=续播, -2=最新, >=0=指定集
      */
     private suspend fun executePlayVideo(arguments: Map<String, Any>): String {
         return withContext(Dispatchers.IO) {
             try {
-                val vodId = arguments["vod_id"] as? String ?: return@withContext """{"error": "缺少vod_id参数"}"""
-                val sourceKey = arguments["source_key"] as? String ?: return@withContext """{"error": "缺少source_key参数"}"""
-                val episodeIndex = (arguments["episode_index"] as? Int) ?: -1
-                
-                // 构造VodInfo
-                val vodInfo = VodInfo()
-                vodInfo.id = vodId
-                vodInfo.sourceKey = sourceKey
-                vodInfo.playIndex = if (episodeIndex >= 0) episodeIndex else 0
-                vodInfo.playFlag = Hawk.get("last_play_flag_$vodId", "")
-                
-                // 保存到当前引擎
-                com.github.tvbox.osc.base.App.getInstance().vodInfo = vodInfo
-                
-                // 启动播放
-                scope.launch(Dispatchers.Main) {
-                    val bundle = Bundle()
-                    bundle.putString("id", vodId)
-                    bundle.putString("sourceKey", sourceKey)
-                    
-                    val intent = Intent(activity, DetailActivity::class.java)
-                    intent.putExtras(bundle)
+                val vodId = arguments["vod_id"] as? String
+                    ?: return@withContext """{"error": "缺少vod_id参数"}"""
+                val sourceKey = arguments["source_key"] as? String
+                    ?: return@withContext """{"error": "缺少source_key参数"}"""
+                val episodeIndex = toIntArg(arguments["episode_index"], -1)
+                val playFlag = arguments["play_flag"] as? String?
+
+                withContext(Dispatchers.Main) {
+                    val intent = Intent(activity, DetailActivity::class.java).apply {
+                        putExtra("id", vodId)
+                        putExtra("sourceKey", sourceKey)
+                        putExtra("autoPlay", true)
+                        putExtra("playIndex", episodeIndex)
+                        if (!playFlag.isNullOrEmpty()) putExtra("playFlag", playFlag)
+                    }
                     activity.startActivity(intent)
                 }
-                
+
                 return@withContext """{"success": true, "message": "正在播放..."}"""
-                
             } catch (e: Exception) {
                 """{"error": "播放失败: ${e.message}"}"""
             }
+        }
+    }
+
+    /**
+     * 将 LLM 返回的参数统一转为 Int（Gson 解析 Map 时数字可能是 Double）
+     */
+    private fun toIntArg(value: Any?, default: Int): Int {
+        return when (value) {
+            is Int -> value
+            is Double -> value.toInt()
+            is Float -> value.toInt()
+            is String -> value.toIntOrNull() ?: default
+            else -> default
+        }
+    }
+
+    /**
+     * 从 search_videos 工具返回的 JSON 中提取 results 列表（解析失败或无结果返回 null）
+     */
+    private fun parseSearchResults(json: String): List<Map<String, Any>>? {
+        return try {
+            val root = Gson().fromJson(json, Map::class.java) as? Map<*, *>
+            val list = root?.get("results") as? List<*>
+            if (list.isNullOrEmpty()) null else list.filterIsInstance<Map<String, Any>>()
+        } catch (_: Exception) {
+            null
         }
     }
     

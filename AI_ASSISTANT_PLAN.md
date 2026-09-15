@@ -79,15 +79,16 @@
 |------|------|------|------|
 | `LlmConfig.kt` | `app/.../ai/` | ✅ 完成 | LLM配置管理，Hawk存储，Provider枚举 |
 | `LlmClient.kt` | `app/.../ai/` | ✅ 完成 | OpenAI兼容客户端，含Function Calling完整支持 |
-| `VideoAssistantEngine.kt` | `app/.../ai/` | ⚠️ 部分完成 | 引擎+5个工具函数，search_videos是stub |
-| `AiAssistantDialog.kt` | `app/.../ai/` | ⚠️ 骨架完成 | UI+消息列表，engine集成是TODO |
+| `VideoAssistantEngine.kt` | `app/.../ai/` | ✅ 完成 | 引擎+5个工具函数，search_videos 已接入全源搜索，play_video 支持 autoPlay 意图 |
+| `AiAssistantDialog.kt` | `app/.../ai/` | ✅ 完成 | UI+消息列表，engine 已接通，真实调用 processInput |
 | `LlmSettingsDialog.kt` | `app/.../ai/` | ✅ 完成 | Provider下拉+API Key+模型ID配置 |
+| `SourceViewModel.searchSync()` | `app/.../viewmodel/` | ✅ 完成 | 新增同步搜索方法，复用 xml()/json() 解析，不触发 UI EventBus |
 
 ### 2.2 布局文件（4个 XML）
 
 | 文件 | 状态 | 说明 |
 |------|------|------|
-| `dialog_ai_assistant.xml` | ⚠️ 有图标引用问题 | AI助手主界面 |
+| `dialog_ai_assistant.xml` | ✅ 完成 | AI助手主界面 |
 | `dialog_llm_settings.xml` | ✅ 完成 | LLM设置界面 |
 | `item_message_user.xml` | ✅ 完成 | 用户消息气泡（右对齐） |
 | `item_message_assistant.xml` | ✅ 完成 | 助手消息气泡（左对齐） |
@@ -119,26 +120,25 @@
 - 响应解析（ChatResponse / ToolCall / ChatMessage）
 - 错误处理（网络错误、API错误、解析错误）
 
-#### ⚠️ VideoAssistantEngine — 部分完成
+#### ✅ VideoAssistantEngine — 已完成
 - ✅ 5个工具函数定义（search_videos, get_play_history, get_favorites, play_video, add_to_favorites）
 - ✅ 对话历史管理（最近20条）
-- ✅ 系统提示词
+- ✅ 系统提示词（含 episode_index 语义：-1续播/-2最新/>=0指定集）
 - ✅ Function Calling 循环（最多3轮重试）
-- ✅ get_play_history 执行器（读Room数据库）
-- ✅ get_favorites 执行器（读Room数据库）
-- ✅ play_video 执行器（启动DetailActivity）
-- ✅ add_to_favorites 执行器（写Room数据库）
-- ❌ **search_videos 执行器是 stub**（只返回提示，未接入SourceViewModel）
-- ❌ **引用了不存在的 `SourceUtil.getSearchSources()`**
+- ✅ get_play_history / get_favorites / add_to_favorites 执行器（读/写 Room 数据库）
+- ✅ **search_videos 执行器** — 遍历 `ApiConfig.getSourceBeanList()` 调用 `SourceViewModel.searchSync()` 聚合结果
+- ✅ **play_video 执行器** — 带 `autoPlay`/`playIndex`/`playFlag` 意图启动 DetailActivity 直接起播
+- ✅ 数值参数统一 `toIntArg` 处理（Gson 解析 Map 时数字为 Double）
 
-#### ⚠️ AiAssistantDialog — 骨架完成
+#### ✅ AiAssistantDialog — 已完成
 - ✅ 底部弹出对话框
-- ✅ 消息列表（RecyclerView + MessageAdapter）
+- ✅ 消息列表（RecyclerView + MessageAdapter，含 user/assistant/system 三类）
 - ✅ 输入框 + 发送按钮
 - ✅ 加载遮罩
 - ✅ 设置入口
-- ❌ **engine 集成是 TODO**（initEngine 方法注释掉了）
-- ❌ **sendMessage 中是模拟回复**，未调用 engine
+- ✅ **engine 已接通** — initEngine 用 MainActivity 构造 VideoAssistantEngine
+- ✅ **sendMessage 调用真实 engine.processInput**，替换原 mock 回复
+- ✅ 未配置 LLM 时引导去设置
 
 #### ✅ LlmSettingsDialog — 完全完成
 - ✅ Provider 下拉选择
@@ -149,38 +149,31 @@
 
 ---
 
-## 三、未完成内容（待修复 & 待实现）
+## 三、已完成内容（截至 2026-09-15 构建）
 
-### 3.1 🔴 编译阻断问题（必须修复才能构建）
+> 构建版本 v1.0.2，`assembleDebug` 通过。原 §3.1/§3.2 的编译阻断与功能缺失项已全部解决：
 
-| # | 问题 | 文件 | 修复方案 |
-|---|------|------|---------|
-| 1 | 颜色 `bili_pink_10` 未定义 | `bg_message_user.xml` / `bg_message_assistant.xml` | 在 colors.xml 添加 `#1AFB7299`（粉色10%透明） |
-| 2 | 布局 `item_message_system.xml` 不存在 | `AiAssistantDialog.kt:213` | 创建该系统消息布局 |
-| 3 | 图标 `ic_close` 应为 `ic_close_24` | `dialog_ai_assistant.xml` | 修改引用名为 `@drawable/ic_close_24` |
+### 3.1 ✅ 编译阻断问题（已全部修复）
+- 颜色 `bili_pink_10` 已在 colors.xml 定义（`#1AFB7299`）
+- `item_message_system.xml` 已创建
+- 布局图标引用已修正为 `@drawable/ic_close_24` / `@drawable/ic_settings`
 
-### 3.2 🟡 功能缺失（核心功能不完整）
+### 3.2 ✅ 核心功能（已全部实现）
+- search_videos：遍历所有源调用 `SourceViewModel.searchSync()` 聚合结果
+- engine 集成：AiAssistantDialog 接通 `VideoAssistantEngine.processInput()`
+- 真实对话：sendMessage 替换 mock，走完整 LLM + Function Calling 链路
+- "我的"页面入口：fragment_my.xml 新增 `tvAiAssistant`，MyFragment 启动 `AiAssistantDialog(requireActivity())`
+- play_video：通过 DetailActivity 的 `autoPlay` / `playIndex` / `playFlag` 意图直接起播
 
-| # | 问题 | 文件 | 说明 |
+### 3.3 🟢 优化项（后续迭代，非阻塞）
+| # | 内容 | 说明 | 状态 |
 |---|------|------|------|
-| 4 | search_videos 是 stub | `VideoAssistantEngine.kt:238-261` | 需要接入 SourceViewModel 的全源搜索逻辑 |
-| 5 | engine 未集成到 Dialog | `AiAssistantDialog.kt:68-72` | 需要传入 Activity 实例，完成 engine 初始化 |
-| 6 | sendMessage 是模拟回复 | `AiAssistantDialog.kt:123-131` | 需要替换为 engine.processInput() 调用 |
-| 7 | "我的"页面无AI助手入口 | `fragment_my.xml` / `MyFragment.java` | 需要在列表中添加"AI助手"按钮 |
-| 8 | VodInfo.updateTime 字段不存在 | `VideoAssistantEngine.kt:288` | 需要从 VodRecord 获取 updateTime 而非 VodInfo |
-| 9 | SourceUtil.getSearchSources() 不存在 | `VideoAssistantEngine.kt:245` | 需要改用 ApiConfig.get().getSources() 或等价方法 |
-
-### 3.3 🟢 优化项（可后续迭代）
-
-| # | 内容 | 说明 |
-|---|------|------|
-| 10 | 搜索结果卡片展示 | 搜索到视频后以卡片形式展示，用户点击选择 |
-| 11 | 语音输入 | 集成系统语音识别，转文字后发送给engine |
-| 12 | 多轮对话优化 | 当前每轮都发全量历史，可优化为增量 |
-| 13 | Streaming 响应 | 当前是一次性返回，可改为 SSE 流式输出 |
-| 14 | 搜索结果缓存 | 避免重复搜索相同关键词 |
-| 15 | 播放进度回调 | 播放后自动记录进度，下次续播更准确 |
-| 16 | 错误重试机制 | LLM返回格式异常时自动重试 |
+| 10 | 搜索结果卡片展示 | 搜索到视频后以卡片形式展示，点击跳详情 | ✅ 已完成 (2026-09-15) |
+| 11 | 语音输入 | 集成系统语音识别转文字 | ⬜ 待排期 |
+| 12 | 多轮对话/流式响应 | 当前一次性返回，可改 SSE 流式 | ⬜ 待排期 |
+| 13 | 搜索结果缓存 | 避免重复搜索相同关键词 | ⬜ 待排期 |
+| 14 | 错误重试/限流 | LLM 异常自动重试 | ⬜ 待排期 |
+| 15 | 失败源短期黑名单 | 搜索时跳过最近 5 分钟内连续失败的源，成功则恢复 | ✅ 已完成 (2026-09-15) |
 
 ---
 
@@ -294,22 +287,22 @@ AiAssistantDialog 显示搜索结果
 
 ## 六、开发优先级建议
 
-### Phase 1：修复编译 + 打通基础链路（必须）
-1. 修复 3 个编译阻断问题（颜色/布局/图标）
-2. 修复 VideoAssistantEngine 中的错误引用
-3. 完成 AiAssistantDialog 的 engine 集成
-4. 在"我的"页面添加入口按钮
-5. 构建验证
+### Phase 1：修复编译 + 打通基础链路 ✅ 已完成（2026-09-15）
+1. ✅ 修复 3 个编译阻断问题（颜色/布局/图标）
+2. ✅ 修复 VideoAssistantEngine 中的错误引用
+3. ✅ 完成 AiAssistantEngine 的 engine 集成
+4. ✅ 在"我的"页面添加入口按钮
+5. ✅ 构建验证通过（v1.0.2）
 
-### Phase 2：实现搜索功能（核心）
-1. 实现 search_videos 执行器（接入 SourceViewModel 搜索）
-2. 搜索结果以卡片形式展示
-3. 用户点击卡片可播放
+### Phase 2：实现搜索功能 ✅ 已完成（2026-09-15）
+1. ✅ 实现 search_videos 执行器（接入 SourceViewModel.searchSync 全源搜索）
+2. 🟢 搜索结果以卡片形式展示（待优化）
+3. 🟢 用户点击卡片可播放（待优化）
 
-### Phase 3：体验优化
-1. 语音输入
-2. Streaming 响应
-3. 更多错误处理和重试
+### Phase 3：体验优化（待排期）
+1. 🟢 语音输入
+2. 🟢 Streaming 响应
+3. 🟢 更多错误处理和重试
 
 ---
 

@@ -8,6 +8,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
+import com.blankj.utilcode.util.ToastUtils
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.ui.dialog.BaseDialog
 import com.google.android.material.button.MaterialButton
@@ -110,7 +111,7 @@ class LlmSettingsDialog(context: Context) : BaseDialog(context) {
             etApiKey.setText("")
             etModelId.setText("")
             spinnerProvider.setSelection(0)
-            android.widget.Toast.makeText(context, "已清除配置", android.widget.Toast.LENGTH_SHORT).show()
+            ToastUtils.showShort("已清除配置")
         }
         
         btnSave.setOnClickListener {
@@ -130,10 +131,10 @@ class LlmSettingsDialog(context: Context) : BaseDialog(context) {
             LlmConfig.setModelId(etModelId.text.toString().trim())
             
             if (LlmConfig.isConfigured()) {
-                android.widget.Toast.makeText(context, "配置已保存", android.widget.Toast.LENGTH_SHORT).show()
+                ToastUtils.showShort("配置已保存")
                 dismiss()
             } else {
-                android.widget.Toast.makeText(context, "请填写完整的配置信息", android.widget.Toast.LENGTH_SHORT).show()
+                ToastUtils.showShort("请填写完整的配置信息")
             }
         }
     }

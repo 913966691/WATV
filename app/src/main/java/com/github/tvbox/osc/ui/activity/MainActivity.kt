@@ -26,6 +26,7 @@ import com.github.tvbox.osc.ui.fragment.LiveFragment
 import com.github.tvbox.osc.ui.fragment.MyFragment
 import com.github.tvbox.osc.ui.fragment.SubFragment
 import com.github.tvbox.osc.ai.AiAssistantDialog
+import com.github.tvbox.osc.server.ControlManager
 import kotlin.system.exitProcess
 
 class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
@@ -40,6 +41,10 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
         // 必须在 super.onCreate 之前调用,否则窗口背景/状态栏配色会沿用启动主题。
         setTheme(R.style.AppTheme)
         super.onCreate(savedInstanceState)
+        // 本地代理(RemoteServer,127.0.0.1:9978)是直播/点播流的统一入口,必须随 App 常驻。
+        // 之前绑在 HomeFragment 生命周期上,首页被重建时会 stop 且无法重启,导致"先播直播再点播"连不上代理(2001)。
+        // 改为在 MainActivity 启动即拉起,且 ControlManager.startServer 已修成可重启。
+        ControlManager.get().startServer()
     }
 
     private val fragments = listOf(HomeFragment(), LiveFragment(), SubFragment(), MyFragment())
@@ -151,6 +156,7 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
     private fun applyLiveVisible(visible: Boolean) {
         if (lastLiveVisible == visible) return
         lastLiveVisible = visible
+        android.util.Log.d("WATV_PLAY", "applyLiveVisible visible=$visible thread=${Thread.currentThread().name}")
         (fragments[1] as? LiveFragment)?.setPageVisible(visible)
     }
 

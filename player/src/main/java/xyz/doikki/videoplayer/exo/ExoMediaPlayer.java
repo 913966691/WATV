@@ -2,6 +2,7 @@ package xyz.doikki.videoplayer.exo;
 
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
+import android.os.Handler;
 import android.net.TrafficStats;
 import android.util.Log;
 import android.view.Surface;
@@ -46,6 +47,15 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
     private String path;
     private Map<String, String> headers;
 
+    /**
+     * 起播失败后延迟重试次数上限。
+     * 用途:直播刚 release 后底层 MediaCodec(HAL)释放常滞后,若立刻起播点播会拿不到解码器而
+     * 报 onPlayerError。延迟 + 多次重试能让上一个解码器实例真正回收后再重新 prepare,
+     * 兼容小米14/澎湃OS 等设备在"直播→点播"切换时偶发的起播失败。
+     */
+    private static final int MAX_PLAY_RETRY = 3;
+    private int mPlayRetryCount = 0;
+
     public ExoMediaPlayer(Context context) {
         mAppContext = context.getApplicationContext();
         mMediaSourceHelper = ExoMediaSourceHelper.getInstance(context);
@@ -53,6 +63,8 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
 
     @Override
     public void initPlayer() {
+        // 新一次起播:清零错误重试计数(重试路径不会走到这里,不会误清)
+        mPlayRetryCount = 0;
         if (mRenderersFactory == null) {
             mRenderersFactory = new DefaultRenderersFactory(mAppContext);
         }
@@ -81,6 +93,8 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
         setOptions();
 
         mMediaPlayer.addListener(this);
+        Log.d("WATV_PLAY", "ExoMediaPlayer.initPlayer 创建 ExoPlayer@"
+                + System.identityHashCode(mMediaPlayer) + " thread=" + Thread.currentThread().getName());
     }
 
     public DefaultTrackSelector getTrackSelector() {
@@ -170,9 +184,13 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
     @Override
     public void release() {
         if (mMediaPlayer != null) {
+            Log.d("WATV_PLAY", "ExoMediaPlayer.release ExoPlayer@"
+                    + System.identityHashCode(mMediaPlayer) + " thread=" + Thread.currentThread().getName());
             mMediaPlayer.removeListener(this);
             mMediaPlayer.release();
             mMediaPlayer = null;
+        } else {
+            Log.d("WATV_PLAY", "ExoMediaPlayer.release 已是 null(无需释放)");
         }
         lastTotalRxBytes = 0;
         lastTimeStamp = 0;
@@ -315,17 +333,41 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
     @Override
     public void onPlayerError(@NonNull PlaybackException error) {
         errorCode = error.errorCode;
-        Log.e("tag--", "" + error.errorCode);
-        if (path != null) {
-            setDataSource(path, headers);
-            path = null;
-            prepareAsync();
-            start();
-        } else {
+        Log.e("WATV_PLAY", "ExoMediaPlayer.onPlayerError code=" + error.errorCode
+                + " msg=" + (error.getMessage() != null ? error.getMessage() : "")
+                + " retry=" + mPlayRetryCount);
+        if (path == null) {
             if (mPlayerEventListener != null) {
                 mPlayerEventListener.onError();
             }
+            return;
         }
+        if (mPlayRetryCount >= MAX_PLAY_RETRY) {
+            mPlayRetryCount = 0;
+            Log.e("WATV_PLAY", "ExoMediaPlayer 重试耗尽,放弃 path=" + path);
+            if (mPlayerEventListener != null) {
+                mPlayerEventListener.onError();
+            }
+            return;
+        }
+        mPlayRetryCount++;
+        final String retryPath = path;
+        final Map<String, String> retryHeaders = headers;
+        // 延迟重试:直播刚 release 后底层 MediaCodec(HAL)释放常滞后,
+        // 若立即起播点播会拿不到解码器而失败。延后若干毫秒再重新 prepare,
+        // 让上一个解码器实例真正回收,兼容小米14/澎湃OS 等设备。
+        final long delayMs = 300L * mPlayRetryCount;
+        Log.w("WATV_PLAY", "ExoMediaPlayer 延迟重试 #" + mPlayRetryCount + " delay=" + delayMs + "ms");
+        new Handler(mAppContext.getMainLooper()).postDelayed(() -> {
+            // 期间已被 release / 重建则放弃重试,避免对空实例操作
+            if (mMediaPlayer == null) {
+                Log.w("WATV_PLAY", "ExoMediaPlayer 重试前已被释放,取消重试");
+                return;
+            }
+            setDataSource(retryPath, retryHeaders);
+            prepareAsync();
+            start();
+        }, delayMs);
     }
 
     @Override

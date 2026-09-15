@@ -64,6 +64,7 @@ import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.live.TxtSubscribe;
 import com.github.tvbox.osc.callback.EmptyCallback;
 import com.github.tvbox.osc.callback.LoadingCallback;
+import com.github.tvbox.osc.callback.TimeoutCallback;
 import com.kingja.loadsir.core.LoadLayout;
 import com.kingja.loadsir.core.LoadService;
 import com.kingja.loadsir.core.LoadSir;
@@ -154,6 +155,43 @@ public class LiveFragment extends Fragment implements LiveHost {
     private BasePopupView mAllChannelRightDialog;
     private boolean noLiveChannelsShown;
 
+    /** 直播源冷加载看门狗:进入加载后 60s 仍未出结果(成功/空)则提示超时并可手动重刷 */
+    private static final long LOAD_TIMEOUT_MS = 60_000L;
+    private final Runnable mLoadTimeoutRunnable = new Runnable() {
+        @Override
+        public void run() {
+            // 页面已不可见时不弹超时(用户已切走);数据已加载出来也不弹
+            if (!pageVisible || !liveChannelGroupList.isEmpty()) return;
+            showLoadTimeout("直播源加载超时，请点击重新加载");
+        }
+    };
+
+    /** 配置未就绪时轮询重试:每隔一小段时间再查一次 ApiConfig,直到源配置加载出来 */
+    private static final long RETRY_LOAD_DELAY = 800L;
+    private final Runnable mRetryLiveLoadRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!pageVisible) return; // 已切走则不继续轮询
+            initLiveChannelList();
+        }
+    };
+    private void scheduleRetryLiveLoad() {
+        mHandler.removeCallbacks(mRetryLiveLoadRunnable);
+        mHandler.postDelayed(mRetryLiveLoadRunnable, RETRY_LOAD_DELAY);
+    }
+    private void cancelRetryLiveLoad() {
+        mHandler.removeCallbacks(mRetryLiveLoadRunnable);
+    }
+
+    private void startLiveLoadWatchdog() {
+        mHandler.removeCallbacks(mLoadTimeoutRunnable);
+        mHandler.postDelayed(mLoadTimeoutRunnable, LOAD_TIMEOUT_MS);
+    }
+
+    private void cancelLiveLoadWatchdog() {
+        mHandler.removeCallbacks(mLoadTimeoutRunnable);
+    }
+
     private MainTabHost mTabHost;
     private View mRootView;
     private LoadService mLoadService;
@@ -240,6 +278,20 @@ public class LiveFragment extends Fragment implements LiveHost {
             initLiveState();
         } else {
             channelUiBound = false;
+        }
+
+        // 兜底:本 fragment 是 ViewPager2 懒加载创建的,首次点直播时 setPageVisible(true)
+        // 先于 onViewCreated 执行(mLoadService 还是 null),那次调用被 if(mLoadService!=null)
+        // 跳过,导致首进直播空白、连 loading 都没有。这里若页面此刻已是可见态,补一次与
+        // setPageVisible(true) 等价的加载,确保列表/播放器正常出现。
+        if (pageVisible) {
+            Log.d(TAG_LIVEVIS, "onViewCreated 补加载: pageVisible=true");
+            if (liveChannelGroupList.isEmpty()) {
+                initLiveChannelList();
+            } else {
+                showSuccess();
+                initLiveState();
+            }
         }
     }
 
@@ -346,7 +398,7 @@ public class LiveFragment extends Fragment implements LiveHost {
     private boolean pageVisible = false;
     private static WeakReference<LiveFragment> sInstance = null;
     /** 直播可见性诊断日志,复现"切走后仍在播"问题时抓 logcat 用 */
-    private static final String TAG_LIVEVIS = "LiveVis";
+    private static final String TAG_LIVEVIS = "WATV_PLAY";
     private static int sCreateCount = 0;
     private static int sDestroyCount = 0;
     /** 频道数据是否已绑定到当前 view。视图重建后会置 false,需要重新绑定/重新加载 */
@@ -417,6 +469,8 @@ public class LiveFragment extends Fragment implements LiveHost {
         liveChannelGroupList.clear();
         channelUiBound = false;
         noLiveChannelsShown = false;
+        cancelLiveLoadWatchdog();
+        cancelRetryLiveLoad();
         mHandler.removeCallbacks(mStartRun);
     }
 
@@ -439,8 +493,12 @@ public class LiveFragment extends Fragment implements LiveHost {
                 mVideoView.resume();
             }
         } else {
+            cancelLiveLoadWatchdog();
+            cancelRetryLiveLoad();
             if (!liveReleased) {
                 Log.d(TAG_LIVEVIS, "applyPageVisible false -> release");
+                Log.d("WATV_PLAY", "直播释放 mVideoView@" + System.identityHashCode(mVideoView)
+                        + " thread=" + Thread.currentThread().getName());
                 mVideoView.release();
                 liveReleased = true;
             }
@@ -942,15 +1000,26 @@ public class LiveFragment extends Fragment implements LiveHost {
     private void initLiveChannelList() {
         List<LiveChannelGroup> list = ApiConfig.get().getChannelGroupList();
         if (list.isEmpty()) {
+            // 配置尚未加载完(首页还在异步拉源,或刚切源正在重载),不要误判"无直播频道"。
+            // 显示 loading 并轮询重试,等首页配置就绪后自然出频道;60s 看门狗作为兜底超时。
+            if (!ApiConfig.get().isConfigLoaded()) {
+                showLoading();
+                startLiveLoadWatchdog();
+                scheduleRetryLiveLoad();
+                return;
+            }
             showNoLiveChannels();
             return;
         }
+        cancelRetryLiveLoad();
 
         if (list.size() == 1 && list.get(0).getGroupName().startsWith("http://127.0.0.1")) {
+            startLiveLoadWatchdog();   // 走网络/本地拉取,开启 60s 超时看门狗
             loadProxyLives(list.get(0).getGroupName());
         } else {
             liveChannelGroupList.clear();
             liveChannelGroupList.addAll(list);
+            cancelLiveLoadWatchdog();
             showSuccess();
             initLiveState();
         }
@@ -961,7 +1030,7 @@ public class LiveFragment extends Fragment implements LiveHost {
             Uri parsedUrl = Uri.parse(url);
             url = new String(Base64.decode(parsedUrl.getQueryParameter("ext"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP), "UTF-8");
         } catch (Throwable th) {
-            showNoLiveChannels();
+            showLoadTimeout("直播源地址解析失败，请点击重新加载");
             return;
         }
         showLoading();
@@ -975,7 +1044,7 @@ public class LiveFragment extends Fragment implements LiveHost {
                     while ((line = reader.readLine()) != null) content.append(line).append('\n');
                     requireActivity().runOnUiThread(() -> parseProxyLiveContent(content.toString()));
                 } catch (Throwable error) {
-                    requireActivity().runOnUiThread(this::showNoLiveChannels);
+                    requireActivity().runOnUiThread(() -> showLoadTimeout("直播源读取失败，请点击重新加载"));
                 }
             }).start();
             return;
@@ -995,7 +1064,7 @@ public class LiveFragment extends Fragment implements LiveHost {
             @Override
             public void onError(Response<String> response) {
                 super.onError(response);
-                showNoLiveChannels();
+                showLoadTimeout("直播源加载失败，请点击重新加载");
             }
         });
     }
@@ -1007,27 +1076,51 @@ public class LiveFragment extends Fragment implements LiveHost {
         ApiConfig.get().loadLives(TxtSubscribe.live2JsonArray(linkedHashMap));
         List<LiveChannelGroup> list = ApiConfig.get().getChannelGroupList();
         if (list.isEmpty()) {
-            showNoLiveChannels();
+            showLoadTimeout("未解析到可用直播频道，请点击重新加载");
             return;
         }
         liveChannelGroupList.clear();
         liveChannelGroupList.addAll(list);
+        cancelLiveLoadWatchdog();
         showSuccess();
         initLiveState();
     }
 
+    /**
+     * 冷加载重刷:重置"暂无频道"一次性标志,重新拉取直播源。供 LoadSir 超时页点击触发。
+     */
+    private void reloadLiveLoad() {
+        noLiveChannelsShown = false;
+        cancelLiveLoadWatchdog();
+        initLiveChannelList();
+    }
+
+    /**
+     * 统一"超时/空态"提示:居中一行字 + 刷新按钮(点击任意位置经 LoadSir OnReload 触发 reloadLiveLoad)。
+     * 不再弹窗打扰,符合"加载不出来就在页面中间提示一行字"的诉求。
+     */
+    private void showLoadTimeout(String msg) {
+        if (!isAdded()) return;
+        cancelLiveLoadWatchdog();
+        showCallbackSafe(TimeoutCallback.class);
+        if (mLoadService != null) {
+            ViewGroup loadLayout = mLoadService.getLoadLayout();
+            if (loadLayout != null) {
+                TextView tv = loadLayout.findViewById(R.id.tv_timeout_tip);
+                if (tv != null) tv.setText(msg);
+            }
+        }
+    }
+
     private void showNoLiveChannels() {
         if (!isAdded()) return;
+        cancelRetryLiveLoad();
         if (noLiveChannelsShown) {
             return;
         }
         noLiveChannelsShown = true;
-        showEmpty();
-        new XPopup.Builder(requireContext())
-                .asConfirm("暂无直播频道", "当前订阅未提供可用直播频道，请切换或导入包含直播内容的订阅。", () -> {
-                    mTabHost.switchToTab(MainTabHost.TAB_SUBSCRIBE);
-                })
-                .show();
+        // 不再弹窗:改为页面中间一行字提示,并支持手动重新加载(冷加载)
+        showLoadTimeout("当前订阅未提供可用直播频道，请检查订阅或点击重新加载");
     }
 
     /**
@@ -1368,6 +1461,8 @@ public class LiveFragment extends Fragment implements LiveHost {
             mLoadService = LoadSir.getDefault().register(view, new com.kingja.loadsir.callback.Callback.OnReloadListener() {
                 @Override
                 public void onReload(View v) {
+                    // 超时/空态页点击任意位置 → 冷加载重刷直播源
+                    reloadLiveLoad();
                 }
             });
         }

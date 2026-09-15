@@ -48,6 +48,10 @@
             android:exported="true"
             android:theme="@style/SplashTheme">
             <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
             </intent-filter>
         </activity>
@@ -69,13 +73,9 @@
             android:screenOrientation="landscape" />
         <activity
             android:name=".ui.activity.MainActivity"
-            android:theme="@style/AppTheme.Launcher"
+            android:theme="@style/AppTheme"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
         </activity>
         <activity
             android:name=".ui.activity.LiveActivity"

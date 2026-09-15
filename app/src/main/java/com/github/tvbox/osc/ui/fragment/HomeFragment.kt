@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.view.Gravity
+import android.view.View
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentStatePagerAdapter
@@ -22,6 +23,8 @@ import com.github.tvbox.osc.base.BaseLazyFragment
 import com.github.tvbox.osc.base.BaseVbFragment
 import com.github.tvbox.osc.base.MainTabHost
 import com.github.tvbox.osc.bean.AbsSortXml
+import com.github.tvbox.osc.callback.TimeoutCallback
+import com.kingja.loadsir.core.LoadSir
 import com.github.tvbox.osc.bean.MovieSort.SortData
 import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.bean.VodInfo
@@ -57,6 +60,44 @@ class HomeFragment : BaseVbFragment<FragmentHomeBinding>() {
         get() = mBinding.tabLayout.currentItemIndex
 
     /**
+     * 首页资源冷加载看门狗:进入加载后 60s 仍未出结果(成功)则提示超时并可手动重刷。
+     * 切走再切回时 onPause 会清掉所有 Handler 消息(看门狗一并被清),onResume 视情况重启。
+     */
+    private val LOAD_TIMEOUT_MS = 60_000L
+    private val mLoadTimeoutRunnable = Runnable {
+        if (!isVisible) return@Runnable
+        showLoadTimeout("首页资源加载超时，请检查网络后点击重新加载")
+    }
+
+    private fun startLoadWatchdog() {
+        mHandler.removeCallbacks(mLoadTimeoutRunnable)
+        mHandler.postDelayed(mLoadTimeoutRunnable, LOAD_TIMEOUT_MS)
+    }
+
+    private fun cancelLoadWatchdog() {
+        mHandler.removeCallbacks(mLoadTimeoutRunnable)
+    }
+
+    /**
+     * 冷加载重刷:重置配置/jar 就绪标志,从头重新拉取首页资源。供 LoadSir 超时页点击触发。
+     */
+    private fun reloadHome() {
+        dataInitOk = false
+        jarInitOk = false
+        pendingInitData = false
+        initData()
+    }
+
+    /**
+     * 统一"超时/空态"提示:居中一行字 + 刷新按钮(点击任意位置经 LoadSir OnReload 触发 reloadHome)。
+     */
+    private fun showLoadTimeout(msg: String) {
+        cancelLoadWatchdog()
+        showCallback(TimeoutCallback::class.java)
+        mLoadService?.loadLayout?.findViewById<TextView>(R.id.tv_timeout_tip)?.text = msg
+    }
+
+    /**
      * 提供给主页返回操作
      */
     val allFragments: List<BaseLazyFragment>
@@ -72,6 +113,13 @@ class HomeFragment : BaseVbFragment<FragmentHomeBinding>() {
     private var mSortDataList: List<SortData> = ArrayList()
     private var dataInitOk = false
     private var jarInitOk = false
+
+    /**
+     * 标识：loadConfig/loadJar 成功后通过 Handler 延迟继续 initData() 的任务是否还在队列中。
+     * 当用户在 Home 加载过程中切到其它 tab 时，onPause 会 remove 所有 Handler 回调，
+     * 导致这个延迟任务丢失；切回 Home 的 onResume 里通过此标志补调 initData()，避免首页永远卡加载。
+     */
+    private var pendingInitData = false
 
     var errorTipDialog: TipDialog? = null
 
@@ -108,10 +156,21 @@ class HomeFragment : BaseVbFragment<FragmentHomeBinding>() {
         initData()
     }
 
+    /**
+     * 覆写基类注册:超时/空态页点击任意位置 → 冷加载重刷首页资源。
+     */
+    override fun setLoadSir(view: View?) {
+        if (mLoadService == null && view != null) {
+            mLoadService = LoadSir.getDefault().register(view) { reloadHome() }
+        }
+    }
+
+
     private fun initViewModel() {
         sourceViewModel = ViewModelProvider(this).get(SourceViewModel::class.java)
         sourceViewModel?.sortResult?.observe(this) { absXml: AbsSortXml? ->
             showSuccess()
+            cancelLoadWatchdog()
             mSortDataList =
                 if (absXml?.classes != null && absXml.classes.sortList != null) {
                     DefaultConfig.adjustSort(
@@ -126,7 +185,21 @@ class HomeFragment : BaseVbFragment<FragmentHomeBinding>() {
         }
     }
 
+    /**
+     * 将 initData() 投递到 Handler，并标记为“待执行”。
+     * 若 Fragment 在任务执行前进入 onPause，该任务会被 remove；onResume 里通过 pendingInitData 补调。
+     */
+    private fun postInitData(delay: Long = 0) {
+        pendingInitData = true
+        if (delay > 0) {
+            mHandler.postDelayed({ initData() }, delay)
+        } else {
+            mHandler.post { initData() }
+        }
+    }
+
     private fun initData() {
+        pendingInitData = false
         val mainActivity = mActivity as MainActivity
         onlyConfigChanged = mainActivity.useCacheConfig
 
@@ -137,6 +210,7 @@ class HomeFragment : BaseVbFragment<FragmentHomeBinding>() {
         }
 
         showLoading()
+        startLoadWatchdog()
         when{
             dataInitOk && jarInitOk -> {
                 //正常初始化会先加载,最终到这,此时数据有以下几种情况
@@ -171,7 +245,7 @@ class HomeFragment : BaseVbFragment<FragmentHomeBinding>() {
         ApiConfig.get().loadConfig(onlyConfigChanged, object : LoadConfigCallback {
 
             override fun retry() {
-                mHandler.post { initData() }
+                postInitData()
             }
 
             override fun success() {
@@ -179,18 +253,17 @@ class HomeFragment : BaseVbFragment<FragmentHomeBinding>() {
                 if (ApiConfig.get().spider.isEmpty()) {
                     jarInitOk = true
                 }
-                mHandler.postDelayed({ initData() }, 50)
+                postInitData(50)
             }
 
             override fun error(msg: String) {
                 if (msg.equals("-1", ignoreCase = true)) {
-                    mHandler.post {
-                        dataInitOk = true
-                        jarInitOk = true
-                        initData()
-                    }
+                    dataInitOk = true
+                    jarInitOk = true
+                    postInitData()
                 } else {
                     showTipDialog(msg)
+                    cancelLoadWatchdog()
                 }
             }
         }, activity)
@@ -204,22 +277,18 @@ class HomeFragment : BaseVbFragment<FragmentHomeBinding>() {
                 object : LoadConfigCallback {
                     override fun success() {
                         jarInitOk = true
-                        mHandler.postDelayed({
-                            if (!onlyConfigChanged) {
-                                queryHistory()
-                            }
-                            initData()
-                        }, 50)
+                        if (!onlyConfigChanged) {
+                            queryHistory()
+                        }
+                        postInitData(50)
                     }
 
                     override fun retry() {}
                     override fun error(msg: String) {
                         jarInitOk = true
-                        mHandler.post {
-                            // 显示真实失败原因(网络异常/jar损坏等),便于排查订阅地址是否可达
-                            ToastUtils.showLong("更新订阅失败: $msg")
-                            initData()
-                        }
+                        // 显示真实失败原因(网络异常/jar损坏等),便于排查订阅地址是否可达
+                        ToastUtils.showLong("更新订阅失败: $msg")
+                        postInitData()
                     }
                 })
         }
@@ -230,28 +299,22 @@ class HomeFragment : BaseVbFragment<FragmentHomeBinding>() {
             errorTipDialog =
                 TipDialog(requireActivity(), msg, "重试", "取消", object : TipDialog.OnListener {
                     override fun left() {
-                        mHandler.post {
-                            initData()
-                            errorTipDialog?.hide()
-                        }
+                        postInitData()
+                        errorTipDialog?.hide()
                     }
 
                     override fun right() {
                         dataInitOk = true
                         jarInitOk = true
-                        mHandler.post {
-                            initData()
-                            errorTipDialog?.hide()
-                        }
+                        postInitData()
+                        errorTipDialog?.hide()
                     }
 
                     override fun cancel() {
                         dataInitOk = true
                         jarInitOk = true
-                        mHandler.post {
-                            initData()
-                            errorTipDialog?.hide()
-                        }
+                        postInitData()
+                        errorTipDialog?.hide()
                     }
 
                     override fun onTitleClick() {
@@ -314,6 +377,24 @@ class HomeFragment : BaseVbFragment<FragmentHomeBinding>() {
                 }
             //tab和vp绑定
             install(mBinding.mViewPager, mBinding.tabLayout, true)
+            // 重建后强制让内部子 Fragment 收到可见分发并重新布局,
+            // 避免"空白需点击才出内容"(外层 ViewPager2 销毁重建导致内层懒加载 init 漏触发)
+            mBinding.mViewPager.post {
+                mBinding.mViewPager.requestLayout()
+                dispatchInnerVisible()
+            }
+        }
+    }
+
+    /**
+     * 让内部 ViewPager 当前可见的 BaseLazyFragment 重新收到可见分发(幂等),
+     * 覆盖父 Fragment 被外层 ViewPager2 销毁重建后子 Fragment 漏触发 init 的边界。
+     */
+    private fun dispatchInnerVisible() {
+        childFragmentManager.fragments.forEach { f ->
+            if (f is BaseLazyFragment && f.isVisible) {
+                f.reattachVisibleIfNeeded()
+            }
         }
     }
 
@@ -332,6 +413,20 @@ class HomeFragment : BaseVbFragment<FragmentHomeBinding>() {
     override fun onPause() {
         super.onPause()
         mHandler.removeCallbacksAndMessages(null)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 如果在加载过程中切走再切回，loadConfig/loadJar 成功后 post 的 initData() 可能已被 onPause 移除，
+        // 这里通过 pendingInitData 标志补调一次，避免首页永远卡在 loading。
+        if (isAdded && view != null && pendingInitData) {
+            initData()
+        } else if (isAdded && view != null && (!dataInitOk || !jarInitOk)) {
+            // 回来时仍在加载(或已超时未重刷)，重启 60s 看门狗，确保超时提示能再次出现
+            startLoadWatchdog()
+        }
+        // 切回首页时,确保内部 ViewPager 子 Fragment 已触发加载并显示(重建边界兜底)
+        mBinding.mViewPager?.post { dispatchInnerVisible() }
     }
 
     private fun showSiteSwitch() {
@@ -376,7 +471,10 @@ class HomeFragment : BaseVbFragment<FragmentHomeBinding>() {
 
     override fun onDestroy() {
         super.onDestroy()
-        ControlManager.get().stopServer()
+        // 注意:不要在此 stopServer()。本地代理(RemoteServer)是直播/点播流的统一入口,
+        // 必须随 App 常驻;一旦随首页销毁而被 stop,且 ControlManager.startServer 曾因 mServer!=null
+        // 误判"已在运行"而无法重启,会导致"先播直播再点播"连不上代理(ExoPlayer 2001)。
+        // 代理生命周期已上移到 MainActivity,此处不再停服。
     }
 
     private fun queryHistory() {

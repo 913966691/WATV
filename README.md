@@ -22,7 +22,25 @@
 
 ### ✨ 近期更新亮点
 
-**v1.0.5（当前版本）**
+**v1.0.6（当前版本）**
+
+> 本版本合并了原内部迭代 **v1.0.6 – v1.0.17** 的全部改动，统一归并如下。
+
+- 🎬 **播放与直播修复**
+  - 修复「先播直播再点播无法播放」：视频流统一经 App 本地代理 `RemoteServer`(127.0.0.1:9978)，原代理绑定在 `HomeFragment` 生命周期、被重建误杀且无法重启（ExoPlayer 报 `2001` 网络连接失败）；已将代理生命周期上移到 `MainActivity` 随 App 常驻，并修复 `ControlManager` 的 `startServer`/`stopServer` 重启逻辑。
+  - 修复「冷启动首进直播空白」：`LiveFragment` 懒加载导致首次可见性通知早于 `onViewCreated`，加载被 `if(mLoadService!=null)` 跳过；已在 `onViewCreated` 末尾加 `pageVisible` 兜底。
+  - 修复「冷启动抢进直播页误报暂无频道」：新增 `ApiConfig.isConfigLoaded()` 标记区分「配置仍在加载」与「真的没频道」，配置未就绪时显示 loading 并每 800ms 轮询重试（60s 看门狗兜底），就绪后自动出列表，不再误报。
+- 🏠 **首页加载修复**
+  - 修复「首页加载中切走再回来卡 loading」：`onPause` 清掉延迟 `initData` 任务导致加载链中断；新增 `pendingInitData` 标志与 `onResume` 补调机制。
+  - 修复「首页切走再切回内容空白需点击才出」：外层 ViewPager2 销毁重建 HomeFragment 后，内层 ViewPager 子 Fragment 懒加载 `init` 被漏触发；建立内部 ViewPager 与 `onResume` 时主动补发幂等可见分发（`BaseLazyFragment.reattachVisibleIfNeeded()`）并强制重布局。
+- ⏱️ **启动页（弹幕 + 跳过 + 10 秒）**
+  - 新增独立 `SplashActivity` 作为启动入口（停留 10 秒），全屏弹幕横飘（50+ 条随机文案、颜色/字号/速度随机、可重复）、右上角带倒计时「跳过」按钮（点击立即进首页）。
+  - 修复启动页崩溃：`DanmakuView.stop()` 遍历动画列表时并发修改触发 `ConcurrentModificationException`，改为先快照再 `cancel`。
+  - Logo 固定 180dp 居中显示；弹幕层级置顶飘过（`ivLogo` 底 → `danmakuView` 中 → `tvSkip` 最上），跳过按钮保持最上层可点击。
+- ⏳ **加载超时冷加载兜底** — 首页与直播页新增 60 秒看门狗，超时在页面中间提示一行字并提供「重新加载」刷新按钮（点击任意位置触发冷加载重刷）；直播页「暂无直播频道」由弹窗改为页面中间一行字提示（同样支持手动重刷）。
+- 🔧 **诊断日志** — 补齐 `WATV_PLAY` 诊断日志（释放链/起播链/播放状态序列），便于 logcat 抓时序定位。
+
+**v1.0.5**
 - 🔧 **版本号统一** — 头像旁与底部版本号均读取 `build.gradle` 的 `versionName`，单一来源，不再出现两边不一致
 - 🛡 **语音容错增强** — 澎湃 OS 等无系统语音输入服务的设备，给出明确提示并引导使用输入法语音输入
 
@@ -86,7 +104,7 @@ AI 智能助手位于底部导航栏中间的「AI」入口，点击即可唤起
 
 ### 蛙 TV for Android
 
-**最新版本：** v1.0.5
+**最新版本：** v1.0.6
 
 前往 [Releases 页面](https://github.com/913966691/WATV/releases) 下载最新 APK。
 
@@ -116,8 +134,8 @@ AI 智能助手位于底部导航栏中间的「AI」入口，点击即可唤起
 
 1. **更新版本号**：修改 `app/build.gradle` 中的 `versionCode` 和 `versionName`
    ```
-   versionCode 105
-   versionName '1.0.5'
+   versionCode 106
+   versionName '1.0.6'
    ```
 2. **推送 Tag 触发发布**：
    ```bash
@@ -133,6 +151,7 @@ AI 智能助手位于底部导航栏中间的「AI」入口，点击即可唤起
 
 ## 𝟭. 更新记录
 
+>* **2026/09/15 蛙 TV v1.0.6：** 综合更新（合并原内部迭代 v1.0.6 – v1.0.17）——① 播放/直播：修复先播直播再点播无法播放（本地代理 `RemoteServer` 生命周期上移到 `MainActivity` 常驻、修复 `ControlManager` 重启逻辑）；修复冷启动首进直播空白（`onViewCreated` 末尾补 `pageVisible` 兜底）；修复冷启动抢进直播页误报「暂无频道」（`ApiConfig.isConfigLoaded()` 标记 + 轮询重试）。② 首页：修复加载中切走再回卡 loading（`pendingInitData` + `onResume` 补调）；修复切走再切回内容空白需点击才出（内层子 Fragment 补发可见分发 + 重布局）。③ 启动页：新增 `SplashActivity` 独立启动入口、停留 10 秒、50+ 条随机弹幕横飘、右上角倒计时「跳过」按钮；修复 `DanmakuView.stop()` 并发修改崩溃；Logo 固定 180dp 居中、弹幕置顶飘过。④ 加载超时冷加载兜底：首页/直播页 60s 看门狗 + 重刷按钮；直播页「暂无频道」由弹窗改一行字。⑤ 补齐 `WATV_PLAY` 诊断日志。
 >* **2026/09/15 蛙 TV v1.0.5：** 版本号统一管理（头像与底部版本号均读取 build.gradle）；增强语音输入容错，澎湃 OS 等无系统语音服务的设备给出明确提示并引导使用输入法语音输入。
 >* **2026/09/15 蛙 TV v1.0.4：** 新增系统语音输入兜底，设备无内联识别服务时自动调起系统语音输入界面，识别结果回填输入框。
 >* **2026/09/15 蛙 TV v1.0.3：** AI 助手新增语音输入，输入框加入麦克风按钮，支持应用内语音转文字（实时识别 + 文本回填）。

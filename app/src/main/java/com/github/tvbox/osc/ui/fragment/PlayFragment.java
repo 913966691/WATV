@@ -389,6 +389,9 @@ public class PlayFragment extends BaseLazyFragment {
         mVideoView.addOnStateChangeListener(new VideoView.SimpleOnStateChangeListener() {
             @Override
             public void onPlayStateChanged(int playState) {
+                android.util.Log.d("WATV_PLAY", "PlayFragment onPlayStateChanged="
+                        + playState + " name=" + playStateName(playState)
+                        + " vv@" + System.identityHashCode(mVideoView));
                 if (playState == VideoView.STATE_PREPARED || playState == VideoView.STATE_PLAYING) {
                     if (mActivity instanceof DetailActivity) {
                         mActivity.runOnUiThread(() -> ((DetailActivity) mActivity).applyPreviewPlayerRatio());
@@ -396,6 +399,22 @@ public class PlayFragment extends BaseLazyFragment {
                 }
             }
         });
+    }
+
+    private String playStateName(int s) {
+        switch (s) {
+            case VideoView.STATE_IDLE: return "IDLE";
+            case VideoView.STATE_PREPARING: return "PREPARING";
+            case VideoView.STATE_PREPARED: return "PREPARED";
+            case VideoView.STATE_PLAYING: return "PLAYING";
+            case VideoView.STATE_PAUSED: return "PAUSED";
+            case VideoView.STATE_BUFFERING: return "BUFFERING";
+            case VideoView.STATE_BUFFERED: return "BUFFERED";
+            case VideoView.STATE_PLAYBACK_COMPLETED: return "COMPLETED";
+            case VideoView.STATE_ERROR: return "ERROR";
+            case VideoView.STATE_START_ABORT: return "START_ABORT";
+            default: return "UNKNOWN(" + s + ")";
+        }
     }
 
     public boolean hideAllDialogSuccess(){
@@ -956,6 +975,9 @@ public class PlayFragment extends BaseLazyFragment {
         requireActivity().runOnUiThread(() -> {
             stopParse();
             if (mVideoView != null) {
+                android.util.Log.d("WATV_PLAY", "点播起播 startPlayUrl url=" + finalUrl
+                        + " mVideoView@" + System.identityHashCode(mVideoView)
+                        + " thread=" + Thread.currentThread().getName());
                 mVideoView.release();
 
                 if (finalUrl != null) {

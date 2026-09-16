@@ -194,6 +194,18 @@ public abstract class BaseLazyFragment extends Fragment implements CustomAdapt {
     }
 
     /**
+     * 父 Fragment 被外层 ViewPager2 销毁后再创建时,内部 ViewPager 的子 Fragment
+     * 常处于"视图已建好、但可见性分发(init)被漏掉"的游离态,表现为内容空白、需手动
+     * 点击才刷新。此处由父 Fragment 在自身可见时主动补一次可见分发,覆盖该边界。
+     * 幂等:已初始化(currentVisibleState=true)的子 Fragment 不会再重复 init。
+     */
+    public void reattachVisibleIfNeeded() {
+        if (isViewCreated && isAdded() && getUserVisibleHint() && !currentVisibleState) {
+            dispatchUserVisibleHint(true);
+        }
+    }
+
+    /**
      * 在滑动或者跳转的过程中，第一次创建fragment的时候均会调用onResume方法
      */
     @Override

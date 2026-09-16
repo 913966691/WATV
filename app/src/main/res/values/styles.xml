@@ -91,7 +91,7 @@
     </style>
 
     <style name="SplashTheme" parent="AppTheme">
-        <item name="android:windowBackground">@drawable/bg_splash</item>
+        <item name="android:windowBackground">@android:color/white</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="android:fitsSystemWindows">false</item>
@@ -100,10 +100,10 @@
     </style>
 
     <!--
-        启动主题:给 launcher Activity(MainActivity) 专用。
-        注意:真正的启动 Activity 是 MainActivity 而不是 SplashActivity(后者只有 VIEW filter),
-        所以必须把这个主题挂到 MainActivity 上才能影响启动画面。
-        MainActivity.onCreate 里会 setTheme(AppTheme) 切回正常主题,因此仅启动瞬间生效。
+        启动主题:历史上给 launcher Activity(MainActivity) 专用,仅用于启动瞬间背景。
+        现状(v1.0.14 起):真正的 launcher 已改为 SplashActivity(见 AndroidManifest.xml 的
+        MAIN+LAUNCHER),SplashActivity 自身用 SplashTheme 承载完整的启动页(弹幕+跳过按钮+5秒)。
+        MainActivity 现已改用 AppTheme,本 AppTheme.Launcher 仅作保留以防设备兼容回退,不再绑定启动入口。
         API 31+ 的覆盖见 values-v31/styles.xml(使用 framework 的 windowSplashScreen* 属性)。
         
         ★ 关键修复:之前 navigationBarColor=transparent + windowDrawsSystemBarBackgrounds=false

@@ -51,4 +51,7 @@
         <item>R18（内置）</item>
         <item>18cn（内置）</item>
     </string-array>
+
+    <string name="splash_skip">跳过 %1$d</string>
+
 </resources>

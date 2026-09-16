@@ -58,35 +58,65 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/bili_bg_card"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:padding="12dp"
+        android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent">
 
-        <EditText
-            android:id="@+id/et_input"
-            android:layout_width="0dp"
+        <!-- 语音聆听状态条（录音时显示，点击停止） -->
+        <TextView
+            android:id="@+id/tv_speech_status"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:background="@drawable/bg_ai_input"
-            android:hint="说点什么..."
-            android:imeOptions="actionSend"
-            android:inputType="text"
-            android:maxLines="3"
-            android:padding="12dp"
-            android:textColor="@color/bili_text_primary"
-            android:textColorHint="@color/bili_text_tertiary"
-            android:textSize="14sp" />
+            android:background="@color/bili_bg_card"
+            android:gravity="center"
+            android:paddingVertical="10dp"
+            android:text="🎤 聆听中… 点击停止"
+            android:textColor="@color/bili_pink"
+            android:textSize="14sp"
+            android:visibility="gone" />
 
-        <ImageView
-            android:id="@+id/iv_send"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="8dp"
-            android:background="@drawable/bg_ai_send_btn"
-            android:padding="10dp"
-            android:src="@drawable/ic_send"
-            app:tint="@color/white" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="12dp">
+
+            <ImageView
+                android:id="@+id/iv_mic"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_ai_send_btn"
+                android:padding="9dp"
+                android:src="@drawable/ic_mic"
+                app:tint="@color/white" />
+
+            <EditText
+                android:id="@+id/et_input"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/bg_ai_input"
+                android:hint="说点什么..."
+                android:imeOptions="actionSend"
+                android:inputType="text"
+                android:maxLines="3"
+                android:padding="12dp"
+                android:textColor="@color/bili_text_primary"
+                android:textColorHint="@color/bili_text_tertiary"
+                android:textSize="14sp" />
+
+            <ImageView
+                android:id="@+id/iv_send"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_ai_send_btn"
+                android:padding="10dp"
+                android:src="@drawable/ic_send"
+                app:tint="@color/white" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

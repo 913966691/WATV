@@ -106,6 +106,10 @@ public class RemoteServer extends NanoHTTPD {
         isStarted = false;
     }
 
+    public boolean isStarted() {
+        return isStarted;
+    }
+
     @Override
     public Response serve(IHTTPSession session) {
         EventBus.getDefault().post(new ServerEvent(ServerEvent.SERVER_CONNECTION));

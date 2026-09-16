@@ -113,6 +113,10 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
     private SourceViewModel sourceViewModel;
     private Movie.Video mVideo;
     private VodInfo vodInfo;
+    // AI 助手自动播放意图参数
+    private boolean autoPlay = false;
+    private int aiPlayIndex = -1;     // -1=续播/history, -2=最新, >=0=指定集(0基)
+    private String aiPlayFlag = null;
     public SeriesFlagAdapter seriesFlagAdapter;
     public SeriesAdapter seriesAdapter;
     public String vodId;
@@ -409,8 +413,31 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         }
     }
 
-    private void initCheckedSourcesForSearch() {
-        mCheckSources = SearchHelper.getSourcesForSearch();
+    /**
+     * AI 助手自动播放时，根据 aiPlayIndex 设置播放集数并同步高亮。
+     * aiPlayIndex: -1=续播(保持 history 值) / -2=最新一集 / >=0=指定集(0基)
+     */
+    private void applyAiPlayIndex() {
+        if (vodInfo == null || seriesAdapter == null) return;
+        int size = seriesAdapter.getData().size();
+        if (size == 0) return;
+        int idx;
+        if (aiPlayIndex == -2) {
+            idx = size - 1;
+        } else if (aiPlayIndex >= 0) {
+            idx = Math.min(aiPlayIndex, size - 1);
+        } else {
+            return; // -1 续播：沿用 history 已设置的 playIndex
+        }
+        vodInfo.playIndex = idx;
+        for (int j = 0; j < size; j++) {
+            seriesAdapter.getData().get(j).selected = false;
+        }
+        seriesAdapter.getData().get(idx).selected = true;
+        seriesAdapter.notifyDataSetChanged();
+    }
+
+    private void initCheckedSourcesForSearch() {        mCheckSources = SearchHelper.getSourcesForSearch();
     }
 
     private List<Runnable> pauseRunnable = null;
@@ -517,6 +544,11 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
                         if (vodInfo.playFlag == null || !vodInfo.seriesMap.containsKey(vodInfo.playFlag))
                             vodInfo.playFlag = (String) vodInfo.seriesMap.keySet().toArray()[0];
 
+                        // AI 助手指定线路：覆盖默认线路并让上方循环高亮
+                        if (aiPlayFlag != null && vodInfo.seriesMap.containsKey(aiPlayFlag)) {
+                            vodInfo.playFlag = aiPlayFlag;
+                        }
+
                         int flagScrollTo = 0;
                         for (int j = 0; j < vodInfo.seriesFlags.size(); j++) {
                             VodInfo.VodSeriesFlag flag = vodInfo.seriesFlags.get(j);
@@ -532,7 +564,11 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
                         mBinding.mGridViewFlag.scrollToPosition(flagScrollTo);
 
                         refreshList();
-                        if (showPreview) {
+                        // AI 助手自动播放：根据意图设置集数后直接起播
+                        if (autoPlay) {
+                            applyAiPlayIndex();
+                        }
+                        if (autoPlay || showPreview) {
                             jumpToPlay();
                             mBinding.previewPlayer.setVisibility(View.VISIBLE);
                             toggleSubtitleTextSize();
@@ -562,6 +598,9 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         Intent intent = getIntent();
         if (intent != null && intent.getExtras() != null) {
             Bundle bundle = intent.getExtras();
+            autoPlay = bundle.getBoolean("autoPlay", false);
+            aiPlayIndex = bundle.getInt("playIndex", -1);
+            aiPlayFlag = bundle.getString("playFlag");
             loadDetail(bundle.getString("id", null), bundle.getString("sourceKey", ""));
         }
     }

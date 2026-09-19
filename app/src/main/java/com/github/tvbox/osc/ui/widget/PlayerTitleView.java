@@ -43,6 +43,14 @@ public class PlayerTitleView extends FrameLayout implements IControlComponent {
     private final BatteryReceiver mBatteryReceiver;
     private boolean mIsRegister;//是否注册BatteryReceiver
 
+    /**
+     * 是否在竖屏模式下彻底隐藏标题栏(返回箭头+标题),仅在横屏显示。
+     * 一些单 Activity 架构的入口(LiveFragment 所在的 MainActivity)竖屏时
+     * 没有上一级页面需要"返回",让标题栏显示只会让人困惑。
+     * 默认 false 兼容原有行为,需要时调用 {@link #setHideInPortraitMode} 启用。
+     */
+    private boolean mHideInPortraitMode = false;
+
     public PlayerTitleView(@NonNull Context context) {
         super(context);
     }
@@ -53,6 +61,21 @@ public class PlayerTitleView extends FrameLayout implements IControlComponent {
 
     public PlayerTitleView(@NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
+    }
+
+    /**
+     * 竖屏模式下隐藏标题栏(返回箭头等),仅在横屏显示。
+     */
+    public PlayerTitleView setHideInPortraitMode(boolean hideInPortraitMode) {
+        this.mHideInPortraitMode = hideInPortraitMode;
+        // 如果当前已经在竖屏状态且不可见,直接同步一次状态,避免后续 onVisibilityChanged 被错过
+        if (hideInPortraitMode
+                && mControlWrapper != null
+                && !mControlWrapper.isFullScreen()
+                && getVisibility() != GONE) {
+            setVisibility(GONE);
+        }
+        return this;
     }
 
     {
@@ -76,11 +99,13 @@ public class PlayerTitleView extends FrameLayout implements IControlComponent {
                             ((com.github.tvbox.osc.ui.activity.DetailActivity) activity).toggleFullPreview();
                             return;
                         }
-                        // 单 Activity 架构下,直播/其他 Fragment 的播放器宿主是 MainActivity,
-                        // 旧代码会调 setRequestedOrientation(PORTRAIT) 强行把整个 MainActivity
-                        // 旋成竖屏,导致 Fragment 重建、mVideoView 被 release、播放中断。
-                        // 这里只退出全屏,不再动宿主 Activity 的方向。
+                        // 单 Activity 架构下,直播/其他 Fragment 的播放器宿主是 MainActivity。
+                        // 之前担心 setRequestedOrientation(PORTRAIT) 会触发 Fragment 重建,
+                        // 但现在 MainActivity 已在 manifest 中声明 orientation|screenSize 等 configChanges,
+                        // 方向切换只会走 onConfigurationChanged,不会重建 Activity/Fragment。
+                        // 如果退出全屏时不把方向改回竖屏,MainActivity 会一直保持横屏。
                         if (activity instanceof com.github.tvbox.osc.ui.activity.MainActivity) {
+                            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
                             mControlWrapper.stopFullScreen();
                             return;
                         }
@@ -134,6 +159,17 @@ public class PlayerTitleView extends FrameLayout implements IControlComponent {
     @Override
     public void onVisibilityChanged(boolean isVisible, Animation anim) {
         if (isVisible) {
+            // 开了"竖屏隐藏"且当前确实是竖屏(mControlWrapper 未 attach 时也认作竖屏兜底)→ 强制 GONE
+            if (mHideInPortraitMode
+                    && (mControlWrapper == null || !mControlWrapper.isFullScreen())) {
+                if (getVisibility() != GONE) {
+                    setVisibility(GONE);
+                    if (anim != null) {
+                        startAnimation(anim);
+                    }
+                }
+                return;
+            }
             if (getVisibility() == GONE) {
                 mSysTime.setText(PlayerUtils.getCurrentSystemTime());
                 setVisibility(VISIBLE);
@@ -202,6 +238,11 @@ public class PlayerTitleView extends FrameLayout implements IControlComponent {
         if (isLocked) {
             setVisibility(GONE);
         } else {
+            // 开了"竖屏隐藏"且当前是竖屏 → 解锁也不显示标题栏
+            if (mHideInPortraitMode
+                    && (mControlWrapper == null || !mControlWrapper.isFullScreen())) {
+                return;
+            }
             setVisibility(VISIBLE);
             mSysTime.setText(PlayerUtils.getCurrentSystemTime());
         }

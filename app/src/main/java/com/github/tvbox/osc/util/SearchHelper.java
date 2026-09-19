@@ -57,6 +57,10 @@ public class SearchHelper {
 
     public static List<String> splitWords(String text) {
         List<String> result = new ArrayList<>();
+        // 兼容 detail 解析出 name 为空(null/"")的情况,避免 NPE 崩溃
+        if (text == null || text.trim().isEmpty()) {
+            return result;
+        }
         result.add(text);
         String[] parts = text.split("\\W+");
         if (parts.length > 1) {

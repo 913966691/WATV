@@ -22,7 +22,13 @@
 
 ### ✨ 近期更新亮点
 
-**v1.0.7（当前版本）**
+**v1.0.9（当前版本）**
+- 🐛 **稳定性大幅提升** — 修复切换订阅后点"来源"/"下载"按钮崩溃、横屏看直播退出崩溃、点播切线路 IndexOutOfBoundsException 等多处空指针/越界崩溃；观看历史与收藏不再随订阅切换而消失。
+- 🔧 **茶寮等采集源播放修复** — 修复历史写入丢失 `?ac=detail&ids=` 前缀导致二次解析返回空（"暂无播放数据"）的问题，并支持旧数据自动自愈。
+- 🎬 **播放与直播体验优化** — 中转失败明确 Toast 提示；切线路独立记忆每路的播放集数（切回原线路恢复当时那一集）；直播返回箭头竖屏隐藏；修复直播全屏返回后主界面残留横屏。
+- 📡 **默认源调整** — 点播默认保留饭太硬/王二小，新增肥猫/动漫城/俊佬/摸鱼儿（删除 R18/18cn）；直播默认 Guovin（另加摸鱼儿）。
+
+**v1.0.7**
 - 🔔 **收藏剧集「更新」提醒** — 收藏页卡片右上角新增粉色「更新」角标：打开 App（或进入收藏页）时后台静默遍历收藏，用该条收藏记录的源 `sourceKey` 重新拉取详情，比对「最新集数」与本地记录的已知集数，变多即打标。
   - **电影不参与**：解析出的最大集数 ≤ 1 视为电影/单集，直接跳过检测。
   - **6 小时节流**：同一部剧 6 小时内不重复请求，省流量也避免触发源站风控。
@@ -111,7 +117,7 @@ AI 智能助手位于底部导航栏中间的「AI」入口，点击即可唤起
 
 ### 蛙 TV for Android
 
-**最新版本：** v1.0.7
+**最新版本：** v1.0.9
 
 前往 [Releases 页面](https://github.com/913966691/WATV/releases) 下载最新 APK。
 
@@ -158,6 +164,7 @@ AI 智能助手位于底部导航栏中间的「AI」入口，点击即可唤起
 
 ## 𝟭. 更新记录
 
+>* **2026/09/19 蛙 TV v1.0.9：** 大量崩溃修复与体验优化（versionCode 109）——① 崩溃修复：修复切换订阅后点"来源"按钮崩溃（SearchHelper.splitWords 空指针，新增 resolveQuickSearchTitle 回退链）；修复详情页点"下载"按钮崩溃（vodInfo.seriesMap 为 null，新增 getCurrentSeriesList/getCurrentSeries 兜底 + 全线按钮 onClick 防 null）；修复横屏看直播退出后崩溃（mConnectTimeoutChangeSourceRun 中 currentLiveChannelItem 空指针，加 null 检查与 removeCallbacks）；修复点播切线路过程中 IndexOutOfBoundsException（playIndex=-1 绕过边界检查，改为 ≥0 且 <size 双段守卫）。② 订阅/历史：观看历史与收藏不再随订阅切换而消失（删除 getAllVodRecord 中按当前订阅过滤的逻辑）；切换订阅后视频找不到时给出明确提示（源不存在弹"建议搜索其它源"，源在但无数据文案修正，失败弹窗新增"重试"按钮）。③ 茶寮等采集源"暂无播放数据"根因修复：历史写入丢失 `?ac=detail&ids=` 前缀导致 spider 二次解析返回空对象；insertVodRecord 新增 overrideVodId 重载，以入口原始 id 写历史，并新增旧数据 fallback 自愈（纯数字旧 id 自动补前缀重试）。④ 播放体验：中转播放失败 Toast 提示"代理播放失败,正在重试尝试直连播放"；切线路改为每条线路独立记忆 playIndex（切回原线路恢复当时那一集，新线路不默认选中第 1 集）；直播页左上角返回箭头竖屏隐藏（PlayerTitleView.setHideInPortraitMode）；修复直播全屏点返回后主界面残留横屏（MainActivity 分支补 setRequestedOrientation(PORTRAIT)）。⑤ 默认源调整：点播默认源保留饭太硬/王二小、删除 R18/18cn、新增肥猫/动漫城/俊佬/摸鱼儿；直播默认源 Guovin（另加摸鱼儿 fish.y456y.com）。
 >* **2026/09/16 蛙 TV v1.0.7：** 新增收藏剧集「更新」提醒——收藏页卡片右上角粉色「更新」角标。打开 App（延迟 8s）或进入收藏页时，后台串行遍历收藏，用该条记录的 `sourceKey` 重新 `detailContent` 拉详情，解析 `VodInfo.seriesMap` 取最大集数与本地 `lastEpisodeCount` 比对，变多即打标；电影/单集（集数 ≤ 1）跳过，同一部剧 6 小时节流，单个请求 20s 超时，配置未就绪自动重试 2 次；进入详情页后同步基线并清除角标。收藏表新增 4 个字段，Room v1→v2 显式迁移（保留已有收藏）。
 >* **2026/09/15 蛙 TV v1.0.6：** 综合更新（合并原内部迭代 v1.0.6 – v1.0.17）——① 播放/直播：修复先播直播再点播无法播放（本地代理 `RemoteServer` 生命周期上移到 `MainActivity` 常驻、修复 `ControlManager` 重启逻辑）；修复冷启动首进直播空白（`onViewCreated` 末尾补 `pageVisible` 兜底）；修复冷启动抢进直播页误报「暂无频道」（`ApiConfig.isConfigLoaded()` 标记 + 轮询重试）。② 首页：修复加载中切走再回卡 loading（`pendingInitData` + `onResume` 补调）；修复切走再切回内容空白需点击才出（内层子 Fragment 补发可见分发 + 重布局）。③ 启动页：新增 `SplashActivity` 独立启动入口、停留 10 秒、50+ 条随机弹幕横飘、右上角倒计时「跳过」按钮；修复 `DanmakuView.stop()` 并发修改崩溃；Logo 固定 180dp 居中、弹幕置顶飘过。④ 加载超时冷加载兜底：首页/直播页 60s 看门狗 + 重刷按钮；直播页「暂无频道」由弹窗改一行字。⑤ 补齐 `WATV_PLAY` 诊断日志。
 >* **2026/09/15 蛙 TV v1.0.5：** 版本号统一管理（头像与底部版本号均读取 build.gradle）；增强语音输入容错，澎湃 OS 等无系统语音服务的设备给出明确提示并引导使用输入法语音输入。

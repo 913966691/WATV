@@ -613,11 +613,18 @@ public class ApiConfig {
                     liveURL_final = liveURL;
                 }
                 if (!StringUtils.isBlank(liveURL_final)) {
-                    liveURL_final = Base64.encodeToString(liveURL_final.getBytes("UTF-8"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
-                    liveURL_final = "http://127.0.0.1:9978/proxy?do=live&type=txt&ext=" + liveURL_final;
-                    LiveChannelGroup liveChannelGroup = new LiveChannelGroup();
-                    liveChannelGroup.setGroupName(liveURL_final);
-                    liveChannelGroupList.add(liveChannelGroup);
+                    // LIVE_URL 支持用逗号(或换行)分隔多个直播源,逐个生成 LiveChannelGroup,
+                    // 这样默认就可以一次给两个/多个 URL,而不需要在 Hawk 里硬塞 JSON 数组。
+                    String[] liveUrls = liveURL_final.split("[,\\n]+");
+                    for (String oneUrlRaw : liveUrls) {
+                        String oneUrl = oneUrlRaw.trim();
+                        if (oneUrl.isEmpty()) continue;
+                        String proxied = Base64.encodeToString(oneUrl.getBytes("UTF-8"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
+                        proxied = "http://127.0.0.1:9978/proxy?do=live&type=txt&ext=" + proxied;
+                        LiveChannelGroup liveChannelGroup = new LiveChannelGroup();
+                        liveChannelGroup.setGroupName(proxied);
+                        liveChannelGroupList.add(liveChannelGroup);
+                    }
                 }
             }
 

@@ -27,7 +27,6 @@ import com.github.tvbox.osc.ui.fragment.MyFragment
 import com.github.tvbox.osc.ui.fragment.SubFragment
 import com.github.tvbox.osc.ai.AiAssistantDialog
 import com.github.tvbox.osc.server.ControlManager
-import com.github.tvbox.osc.util.CollectUpdateChecker
 import kotlin.system.exitProcess
 
 class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
@@ -46,11 +45,6 @@ class MainActivity : BaseVbActivity<ActivityMainBinding>(), MainTabHost {
         // 之前绑在 HomeFragment 生命周期上,首页被重建时会 stop 且无法重启,导致"先播直播再点播"连不上代理(2001)。
         // 改为在 MainActivity 启动即拉起,且 ControlManager.startServer 已修成可重启。
         ControlManager.get().startServer()
-        // 打开 App 时静默检查收藏的剧是否更新了新一集(后台串行,6 小时节流)。
-        // 延迟 8 秒等首页把源配置拉完;检查器内部在配置未就绪时还会再重试两次。
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            CollectUpdateChecker.get().checkAll(false)
-        }, 8000)
     }
 
     private val fragments = listOf(HomeFragment(), LiveFragment(), SubFragment(), MyFragment())

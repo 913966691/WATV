@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 收藏卡片右上角「更新」角标背景:B站粉,与暗黑主题卡片对比醒目 -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="#FB7299" />
-    <corners android:radius="4dp" />
-</shape>

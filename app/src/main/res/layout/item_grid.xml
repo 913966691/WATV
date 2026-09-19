@@ -37,25 +37,6 @@
             android:textColor="@color/white"
             android:textSize="10sp" />
 
-        <!-- 收藏页用:检测到该剧更新了新一集时展示的右上角「更新」角标(默认隐藏) -->
-        <TextView
-            android:id="@+id/tvUpdateBadge"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_alignParentEnd="true"
-            android:layout_margin="6dp"
-            android:background="@drawable/bg_badge_update"
-            android:ellipsize="end"
-            android:paddingHorizontal="6dp"
-            android:paddingVertical="2dp"
-            android:singleLine="true"
-            android:text="更新"
-            android:textColor="@color/white"
-            android:textSize="10sp"
-            android:visibility="gone"
-            tools:visibility="visible" />
-
         <!-- B站风格:底部"评分 / 更新至X集"胶囊 + 标题(黑底白字) -->
         <LinearLayout
             android:layout_width="match_parent"

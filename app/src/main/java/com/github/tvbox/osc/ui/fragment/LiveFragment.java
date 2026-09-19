@@ -732,7 +732,9 @@ public class LiveFragment extends Fragment implements LiveHost {
         PlayerMenuView playerMenuView = getPlayerMenuView();
         controller.addControlComponent(playerMenuView);
         controller.addControlComponent(new LiveControlView(requireContext()));
-        mPlayerTitleView = new PlayerTitleView(requireContext());
+        // 直播页是单 Activity 架构下的一个 Tab,竖屏下"标题栏+返回按钮"没有任何意义
+        // (再点返回会退出 App),所以竖屏直接隐藏。横屏保留标题栏,因为可能需要返回点播。
+        mPlayerTitleView = new PlayerTitleView(requireContext()).setHideInPortraitMode(true);
         controller.addControlComponent(mPlayerTitleView);
         controller.setListener(new LiveNewController.LiveControlListener() {
 
@@ -804,6 +806,10 @@ public class LiveFragment extends Fragment implements LiveHost {
     private Runnable mConnectTimeoutChangeSourceRun = new Runnable() {
         @Override
         public void run() {
+            // 兜底:从 initLiveState()/退出播放路径上 currentLiveChannelItem 会被置 null,
+            // 但 mHandler 队列里的这个 Runnable 还没被 removeCallbacks 清掉,延迟触发就会 NPE。
+            // 出现这种情况说明已经离开播放上下文,后续的换源/换频道操作都没意义,直接 return。
+            if (currentLiveChannelItem == null) return;
             currentLiveChangeSourceTimes++;
             if (currentLiveChannelItem.getSourceNum() == currentLiveChangeSourceTimes) {
                 currentLiveChangeSourceTimes = 0;
@@ -1142,6 +1148,8 @@ public class LiveFragment extends Fragment implements LiveHost {
         currentLiveChannelIndex = -1;
         currentLiveChannelItem = null;
         liveReleased = true;
+        // 退出播放时清掉还在排队的换源 Runnable,run() 里有 null 兜底,但先 remove 避免无意义唤醒
+        if (mHandler != null) mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun);
 
         livePlayerManager.init(mVideoView);
 

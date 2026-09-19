@@ -22,6 +22,7 @@ import com.github.tvbox.osc.util.DefaultConfig;
 import com.github.tvbox.osc.util.GsonUtil;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.LOG;
+import com.github.tvbox.osc.util.VodTrace;
 import com.github.tvbox.osc.util.thunder.Thunder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -426,6 +427,7 @@ public class SourceViewModel extends ViewModel {
     public void getDetail(String sourceKey, String id) {
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
         int type = sourceBean.getType();
+        android.util.Log.d("DetailDiag", String.format("getDetail start key=%s type=%d id=%s", sourceKey, type, id));
         if (type == 3) {
             spThreadPool.execute(new Runnable() {
                 @Override
@@ -434,8 +436,13 @@ public class SourceViewModel extends ViewModel {
                         Spider sp = ApiConfig.get().getCSP(sourceBean);
                         List<String> ids = new ArrayList<>();
                         ids.add(id);
-                        json(detailResult, sp.detailContent(ids), sourceBean.getKey());
+                        String raw = sp.detailContent(ids);
+                        android.util.Log.d("DetailDiag", String.format("type=3 raw len=%d body[0,400]=%s",
+                                raw == null ? -1 : raw.length(),
+                                raw == null ? "null" : raw.substring(0, Math.min(400, raw.length()))));
+                        json(detailResult, raw, sourceBean.getKey());
                     } catch (Throwable th) {
+                        android.util.Log.d("DetailDiag", "type=3 spider threw: " + th);
                         th.printStackTrace();
                     }
                 }
@@ -471,6 +478,8 @@ public class SourceViewModel extends ViewModel {
                         @Override
                         public void onError(Response<String> response) {
                             super.onError(response);
+                            android.util.Log.d("DetailDiag", "type=" + type + " http error: "
+                                    + (response.getException() == null ? "" : response.getException().getMessage()));
                             detailResult.postValue(null);
                         }
                     });
@@ -695,26 +704,63 @@ public class SourceViewModel extends ViewModel {
         }
     }
     // playerContent
-    public void getPlay(String sourceKey, String playFlag, String progressKey, String url, String subtitleKey) {
+    /**
+     * 失败结果也要带上 seq:源解析失败时如果丢一个裸 null 出去,消费端无法判断
+     * 这条失败属于哪一次点播,就会把上一次的失败算到当前这一轮头上。
+     */
+    private static JSONObject playFail(int seq) {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("__seq", seq);
+            o.put("__fail", 1);
+            return o;
+        } catch (Throwable th) {
+            return null;
+        }
+    }
+
+    /**
+     * @param seq 本次点播的令牌。解析可能耗时十几秒,期间用户早就换了线路/换集,
+     *            迟到的旧结果必须能被识别并丢弃(否则会"串线":上一条线路的 url
+     *            突然接管正在播的画面,表现为刚出画面就被打断然后报错)。
+     */
+    public void getPlay(int seq, String sourceKey, String playFlag, String progressKey, String url, String subtitleKey) {
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
         int type = sourceBean.getType();
+        final long tReq = VodTrace.now();
+        VodTrace.mark("SRC_PARSE_REQ", "type=" + type + " src=" + sourceBean.getName() + " flag=" + playFlag);
         if (type == 3) {
+            // 注意:spThreadPool 是单线程池,所有 type=3 的源解析在这里串行排队。
+            // 前一个源解析没返回,后面的一律干等 —— 这是"程序侧"可能拖慢点播的关键点,
+            // 所以排队时长要单独打出来,好和"源本身慢"区分开。
+            final long tEnqueue = VodTrace.now();
             spThreadPool.execute(new Runnable() {
                 @Override
                 public void run() {
+                    VodTrace.markCost("SPIDER_QUEUE", tEnqueue, "爬虫线程池排队(单线程串行)");
                     Spider sp = ApiConfig.get().getCSP(sourceBean);
                     try {
+                        long tCall = VodTrace.now();
                         String json = sp.playerContent(playFlag, url, ApiConfig.get().getVipParseFlags());
+                        VodTrace.markCost("SPIDER_DONE", tCall, "playerContent 返回");
+                        // 爬虫返回空串时 JSONObject 会抛 "End of input at character 0",光看这句异常
+                        // 分不清是"源压根没返回"还是"返回了非 JSON(如 HTML 错误页)",这里把原样打出来。
+                        VodTrace.mark("SPIDER_RAW", "len=" + (json == null ? -1 : json.length())
+                                + " body=" + (json == null ? "null"
+                                : json.substring(0, Math.min(300, json.length()))));
                         JSONObject result = new JSONObject(json);
                         result.put("key", url);
                         result.put("proKey", progressKey);
                         result.put("subtKey", subtitleKey);
                         if (!result.has("flag"))
                             result.put("flag", playFlag);
+                        result.put("__seq", seq);
+                        VodTrace.markCost("SRC_PARSE_DONE", tReq, "type=3 源解析完成");
                         playResult.postValue(result);
                     } catch (Throwable th) {
                         th.printStackTrace();
-                        playResult.postValue(null);
+                        VodTrace.fail("SRC_PARSE_FAIL", "type=3 " + th);
+                        playResult.postValue(playFail(seq));
                     }
                 }
             });
@@ -734,10 +780,13 @@ public class SourceViewModel extends ViewModel {
                 result.put("subtKey", subtitleKey);
                 result.put("playUrl", playUrl);
                 result.put("flag", playFlag);
+                result.put("__seq", seq);
+                VodTrace.markCost("SRC_PARSE_DONE", tReq, "type=" + type + " 直连/免解析 playUrl=" + playUrl);
                 playResult.postValue(result);
             } catch (Throwable th) {
                 th.printStackTrace();
-                playResult.postValue(null);
+                VodTrace.fail("SRC_PARSE_FAIL", "type=" + type + " " + th);
+                playResult.postValue(playFail(seq));
             }
         } else if (type == 4) {
             OkGo.<String>get(sourceBean.getApi())
@@ -765,21 +814,27 @@ public class SourceViewModel extends ViewModel {
                             result.put("subtKey", subtitleKey);
                             if (!result.has("flag"))
                                 result.put("flag", playFlag);
+                            result.put("__seq", seq);
+                            VodTrace.markCost("SRC_PARSE_DONE", tReq, "type=4 站点API返回");
                             playResult.postValue(result);
                         } catch (Throwable th) {
                             th.printStackTrace();
-                            playResult.postValue(null);
+                            VodTrace.fail("SRC_PARSE_FAIL", "type=4 解析JSON失败 " + th);
+                            playResult.postValue(playFail(seq));
                         }
                     }
 
                     @Override
                     public void onError(Response<String> response) {
                         super.onError(response);
-                        playResult.postValue(null);
+                        VodTrace.fail("SRC_PARSE_FAIL", "type=4 网络失败 cost=" + (VodTrace.now() - tReq)
+                                + "ms msg=" + (response.getException() == null ? "" : response.getException().getMessage()));
+                        playResult.postValue(playFail(seq));
                     }
                 });
         }else {
-            playResult.postValue(null);
+            VodTrace.fail("SRC_PARSE_FAIL", "未知源类型 type=" + type);
+            playResult.postValue(playFail(seq));
         }
     }
 
@@ -1024,6 +1079,25 @@ public class SourceViewModel extends ViewModel {
             }.getType());
             AbsXml data = absJson.toAbsXml();
             absXml(data, sourceKey);
+            // 诊断:把解析后的结构打出来,便于定位"spider 返回了数据但解析后没集数"这种问题
+            if (data != null && data.movie != null && data.movie.videoList != null) {
+                for (int i = 0; i < data.movie.videoList.size(); i++) {
+                    Movie.Video v = data.movie.videoList.get(i);
+                    int lines = 0, beans = 0;
+                    if (v != null && v.urlBean != null && v.urlBean.infoList != null) {
+                        for (Movie.Video.UrlBean.UrlInfo info : v.urlBean.infoList) {
+                            lines++;
+                            if (info.beanList != null) beans += info.beanList.size();
+                        }
+                    }
+                    android.util.Log.d("DetailDiag", String.format(
+                            "  video[%d] id=%s name=%s urlBean=%s lines=%d beans=%d",
+                            i, v == null ? null : v.id, v == null ? null : v.name,
+                            v == null || v.urlBean == null ? "null" : "ok", lines, beans));
+                }
+            } else {
+                android.util.Log.d("DetailDiag", "  parse ok but movie/videoList empty: data=" + data);
+            }
             if (searchResult == result) {
                 EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_SEARCH_RESULT, data));
             } else if (quickSearchResult == result) {
@@ -1037,6 +1111,7 @@ public class SourceViewModel extends ViewModel {
             }
             return data;
         } catch (Exception e) {
+            android.util.Log.d("DetailDiag", "json() parse failed: " + e);
             if (searchResult == result) {
                 EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_SEARCH_RESULT, null));
             } else if (quickSearchResult == result) {

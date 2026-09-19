@@ -101,6 +101,9 @@ class SubFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: android.os.Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        // 订阅 Tab 是 MainActivity ViewPager 内的 Fragment,TitleBar 默认的 leftIcon(返回箭头)
+        // 点过去只会触发 Activity.finish(),把整个 App 退出栈 —— 没用还误导用户。直接隐藏。
+        binding.titleBar.leftView.visibility = View.GONE
         binding.rv.adapter = mSubscriptionAdapter
         mSubscriptions.forEach(Consumer { item: Subscription ->
             if (item.isChecked) {

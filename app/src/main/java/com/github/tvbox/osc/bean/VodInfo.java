@@ -60,6 +60,11 @@ public class VodInfo implements Serializable {
     public String sourceKey;
     public String playerCfg = "";
     public boolean reverseSort = false;
+    /**
+     * 仅展示用:观看/收藏时间戳(来自 VodRecord/VodCollect.updateTime,不参与业务序列化语义)。
+     * 历史/收藏页据此做"一周内/更早"分组。
+     */
+    public transient long watchTime;
 
     public void setVideo(Movie.Video video) {
         last = video.last;

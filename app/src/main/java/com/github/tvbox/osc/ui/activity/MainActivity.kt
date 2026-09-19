@@ -25,7 +25,7 @@ import com.github.tvbox.osc.ui.fragment.HomeFragment
 import com.github.tvbox.osc.ui.fragment.LiveFragment
 import com.github.tvbox.osc.ui.fragment.MyFragment
 import com.github.tvbox.osc.ui.fragment.SubFragment
-import com.github.tvbox.osc.ai.AiAssistantDialog
+ import com.github.tvbox.osc.ai.AiAssistantDialog
 import com.github.tvbox.osc.server.ControlManager
 import kotlin.system.exitProcess
 

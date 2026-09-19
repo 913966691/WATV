@@ -240,19 +240,6 @@
                         android:text="线路"
                         android:layout_centerVertical="true"
                         />
-                    <TextView
-                        android:id="@+id/tvChangeLine"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="快捷换线"
-                        android:drawableRight="@drawable/ic_change_20"
-                        android:textColor="@color/bili_text_secondary"
-                        android:textSize="13sp"
-                        android:drawablePadding="4dp"
-                        android:paddingVertical="6dp"
-                        android:paddingLeft="20dp"
-                        android:layout_alignParentRight="true"
-                        />
                 </RelativeLayout>
                 <!--        线路列表-->
                 <androidx.recyclerview.widget.RecyclerView

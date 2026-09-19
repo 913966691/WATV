@@ -312,10 +312,6 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
                 }
             });
         });
-        mBinding.tvChangeLine.setOnClickListener(v -> {
-            FastClickCheckUtil.check(v);
-            quickLineChange();
-        });
         setLoadSir(mBinding.llLayout);
     }
 
@@ -439,7 +435,8 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
 
     private void chooseSeries(int position, boolean reloadWithChangeLine) {
         List<VodInfo.VodSeries> curList = getCurrentSeriesList();
-        if (vodInfo != null && curList != null) {
+        // 防御:position 可能为 -1(新线路从未选过)或越界,此时不应选集/播放
+        if (vodInfo != null && curList != null && position >= 0 && position < curList.size()) {
             boolean reload = false;
             for (int j = 0; j < curList.size(); j++) {
                 seriesAdapter.getData().get(j).selected = false;
@@ -1917,25 +1914,6 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
 
     public String getCurrentVodUrl() {
         return playFragment == null ? "" : playFragment.getFinalUrl();
-    }
-
-    public void quickLineChange() {
-        List<VodInfo.VodSeriesFlag> flags = seriesFlagAdapter.getData();
-        if (flags.size() > 1) {
-            int currentIndex = 0;
-            for (int i = 0; i < flags.size(); i++) {
-                if (flags.get(i).selected) {
-                    currentIndex = i;
-                }
-            }
-            currentIndex += 1;
-            if (currentIndex >= flags.size()) {
-                currentIndex = 0;
-            }
-            mBinding.mGridViewFlag.smoothScrollToPosition(currentIndex);
-            chooseFlag(currentIndex);
-            mBinding.mGridView.postDelayed(() -> chooseSeries(vodInfo.playIndex, true), 300);
-        }
     }
 
     public void showParseRoot(boolean show, ParseAdapter adapter) {

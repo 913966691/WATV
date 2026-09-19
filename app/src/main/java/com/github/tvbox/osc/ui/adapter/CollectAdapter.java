@@ -35,6 +35,9 @@ public class CollectAdapter extends BaseQuickAdapter<VodCollect, BaseViewHolder>
             tvYear.setVisibility(View.GONE);
         }
         helper.setText(R.id.tvName, item.name);
+        // 右上角「更新」角标:检测到该剧更新了新一集时展示。
+        // 该 id 仅在本收藏适配器里被设置,item_grid 被其它页面复用时保持 gone,不会误显。
+        helper.setVisible(R.id.tvUpdateBadge, item.hasUpdate == 1);
         ImageView ivThumb = helper.getView(R.id.ivThumb);
         //由于部分电视机使用glide报错
         if (!TextUtils.isEmpty(item.pic)) {

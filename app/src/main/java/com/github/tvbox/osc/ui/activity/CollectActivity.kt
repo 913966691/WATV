@@ -14,6 +14,7 @@ import com.github.tvbox.osc.cache.RoomDataManger
 import com.github.tvbox.osc.cache.VodCollect
 import com.github.tvbox.osc.databinding.ActivityCollectBinding
 import com.github.tvbox.osc.ui.adapter.CollectAdapter
+import com.github.tvbox.osc.util.CollectUpdateChecker
 import com.github.tvbox.osc.util.FastClickCheckUtil
 import com.github.tvbox.osc.util.Utils
 import com.lxj.xpopup.XPopup
@@ -83,6 +84,28 @@ class CollectActivity : BaseVbActivity<ActivityCollectBinding>() {
                     }
                 }
             }
+    }
+
+    /**
+     * 进入收藏页时触发一轮"是否有新一集"检查(6 小时节流)。
+     * 检查在后台串行跑,命中更新后回调刷新列表,给对应卡片打上「更新」角标。
+     */
+    override fun onResume() {
+        super.onResume()
+        CollectUpdateChecker.get().setListener(
+            CollectUpdateChecker.OnUpdateListener { hasUpdate ->
+                if (hasUpdate && !isFinishing && !isDestroyed) {
+                    initData()
+                }
+            }
+        )
+        CollectUpdateChecker.get().checkAll(false)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // 单例监听器长期持有 Activity 会泄漏,离开页面即解绑
+        CollectUpdateChecker.get().setListener(null)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

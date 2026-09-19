@@ -106,6 +106,37 @@ public class AppDataManager {
         }
     };
 
+    /**
+     * v1 → v2:收藏表新增"剧集更新检测"相关字段。
+     * 注意:本项目没有开启 fallbackToDestructiveMigration,缺了这条迁移会直接崩溃(或清库),
+     * 因此必须显式 ALTER TABLE 补齐列,保证老用户的收藏数据不丢。
+     */
+    static final Migration MIGRATION_1_2_COLLECT = new Migration(1, 2) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            try {
+                database.execSQL("ALTER TABLE vodCollect ADD COLUMN lastEpisodeCount INTEGER NOT NULL DEFAULT 0");
+            } catch (SQLiteException e) {
+                e.printStackTrace();
+            }
+            try {
+                database.execSQL("ALTER TABLE vodCollect ADD COLUMN lastEpisodeName TEXT");
+            } catch (SQLiteException e) {
+                e.printStackTrace();
+            }
+            try {
+                database.execSQL("ALTER TABLE vodCollect ADD COLUMN hasUpdate INTEGER NOT NULL DEFAULT 0");
+            } catch (SQLiteException e) {
+                e.printStackTrace();
+            }
+            try {
+                database.execSQL("ALTER TABLE vodCollect ADD COLUMN lastCheckTime INTEGER NOT NULL DEFAULT 0");
+            } catch (SQLiteException e) {
+                e.printStackTrace();
+            }
+        }
+    };
+
     static String dbPath() {
         return DB_NAME + ".v" + DB_FILE_VERSION + ".db";
     }
@@ -117,7 +148,8 @@ public class AppDataManager {
         if (dbInstance == null)
             dbInstance = Room.databaseBuilder(App.getInstance(), AppDataBase.class, dbPath())
                     .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
-                    //.addMigrations(MIGRATION_1_2)
+                    // 收藏表新增"更新检测"字段:v1 → v2(必须启用,否则 Room 会拒绝升级导致崩溃/清库)
+                    .addMigrations(MIGRATION_1_2_COLLECT)
                     //.addMigrations(MIGRATION_2_3)
                     //.addMigrations(MIGRATION_3_4)
                     //.addMigrations(MIGRATION_4_5)

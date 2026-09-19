@@ -123,7 +123,88 @@ public class RoomDataManger {
         record.updateTime = System.currentTimeMillis();
         record.name = vodInfo.name;
         record.pic = vodInfo.pic;
+        // 建立"已知集数"基线:后续比对是否更新了新一集。
+        // 电影/单集(max<=1)基线记 0,检查器会直接跳过,不参与更新检测。
+        record.lastEpisodeCount = calcMaxEpisodeCount(vodInfo);
+        record.lastEpisodeName = calcLastEpisodeName(vodInfo);
+        record.hasUpdate = 0;
+        record.lastCheckTime = System.currentTimeMillis();
         AppDataManager.get().getVodCollectDao().insert(record);
+    }
+
+    /**
+     * 计算 VodInfo 所有线路中最大的集数(即"最新一集"所在线路的集数)。
+     * 电影/单集返回 1,无剧集信息返回 0。
+     */
+    public static int calcMaxEpisodeCount(VodInfo vodInfo) {
+        if (vodInfo == null || vodInfo.seriesMap == null || vodInfo.seriesMap.isEmpty()) {
+            return 0;
+        }
+        int max = 0;
+        for (List<VodInfo.VodSeries> seriesList : vodInfo.seriesMap.values()) {
+            if (seriesList != null && seriesList.size() > max) {
+                max = seriesList.size();
+            }
+        }
+        return max;
+    }
+
+    /**
+     * 取集数最多的那条线路的最后一集名称(如"第12集")。
+     */
+    public static String calcLastEpisodeName(VodInfo vodInfo) {
+        if (vodInfo == null || vodInfo.seriesMap == null || vodInfo.seriesMap.isEmpty()) {
+            return null;
+        }
+        String lastName = null;
+        int max = 0;
+        for (List<VodInfo.VodSeries> seriesList : vodInfo.seriesMap.values()) {
+            if (seriesList != null && !seriesList.isEmpty() && seriesList.size() > max) {
+                max = seriesList.size();
+                lastName = seriesList.get(seriesList.size() - 1).name;
+            }
+        }
+        return lastName;
+    }
+
+    /**
+     * 用户已进入详情页(看到了最新剧集):把集数基线同步为当前最新,并清除「更新」角标。
+     */
+    public static void markCollectViewed(String sourceKey, VodInfo vodInfo) {
+        if (sourceKey == null || vodInfo == null || vodInfo.id == null) return;
+        VodCollect record = AppDataManager.get().getVodCollectDao().getVodCollect(sourceKey, vodInfo.id);
+        if (record == null) return;
+        int max = calcMaxEpisodeCount(vodInfo);
+        if (max > 0) {
+            record.lastEpisodeCount = max;
+            record.lastEpisodeName = calcLastEpisodeName(vodInfo);
+        }
+        record.hasUpdate = 0;
+        record.lastCheckTime = System.currentTimeMillis();
+        AppDataManager.get().getVodCollectDao().update(record);
+    }
+
+    /**
+     * 写回收藏记录(用于更新集数基线 / 更新标记 / 节流时间)。
+     */
+    public static void updateVodCollect(VodCollect record) {
+        if (record == null) return;
+        AppDataManager.get().getVodCollectDao().update(record);
+    }
+
+    public static VodCollect getVodCollect(String sourceKey, String vodId) {
+        return AppDataManager.get().getVodCollectDao().getVodCollect(sourceKey, vodId);
+    }
+
+    /**
+     * 用户已进入详情页(看到了最新剧集),清除"有更新"角标并同步集数基线。
+     */
+    public static void clearCollectUpdateFlag(String sourceKey, String vodId) {
+        VodCollect record = AppDataManager.get().getVodCollectDao().getVodCollect(sourceKey, vodId);
+        if (record == null) return;
+        if (record.hasUpdate == 0) return;
+        record.hasUpdate = 0;
+        AppDataManager.get().getVodCollectDao().update(record);
     }
 
     public static void deleteVodCollect(int id) {

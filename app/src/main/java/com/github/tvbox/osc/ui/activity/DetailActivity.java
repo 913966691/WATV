@@ -513,6 +513,8 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
                     vodInfo = new VodInfo();
                     vodInfo.setVideo(mVideo);
                     vodInfo.sourceKey = mVideo.sourceKey;
+                    // 已进入详情页(看到了最新剧集):同步收藏集数基线并清掉收藏页的「更新」角标
+                    markCollectViewedAsync();
 
                     mBinding.tvName.setText(TextUtils.isEmpty(mVideo.name) ? "暂无信息" : mVideo.name);
                     String srcName = ApiConfig.get().getSource(mVideo.sourceKey).getName();
@@ -782,6 +784,28 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         }
         RoomDataManger.insertVodRecord(sourceKey, vodInfo);
         EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_HISTORY_REFRESH));
+    }
+
+    /**
+     * 详情页加载成功后,把该剧在收藏表里的"集数基线"同步为当前最新,并清除「更新」角标。
+     * 纯增强功能,放后台线程执行,任何异常都不影响正常播放。
+     */
+    private void markCollectViewedAsync() {
+        final String sk = sourceKey;
+        final VodInfo vi = vodInfo;
+        if (sk == null || vi == null) {
+            return;
+        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    RoomDataManger.markCollectViewed(sk, vi);
+                } catch (Throwable th) {
+                    // 收藏更新标记是增强能力,失败静默忽略
+                }
+            }
+        }).start();
     }
 
     @Override

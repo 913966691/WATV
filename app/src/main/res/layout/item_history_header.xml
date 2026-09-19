@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 历史/收藏横版列表的分组标题("一周内"/"更早") -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tvHeader"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="4dp"
+    android:textSize="15sp"
+    android:textStyle="bold"
+    android:textColor="?android:attr/textColorPrimary" />

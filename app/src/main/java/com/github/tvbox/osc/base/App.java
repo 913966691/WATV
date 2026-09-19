@@ -11,6 +11,7 @@ import com.github.tvbox.osc.bean.Subscription;
 import com.github.tvbox.osc.bean.VodInfo;
 import com.github.tvbox.osc.callback.EmptyCallback;
 import com.github.tvbox.osc.callback.LoadingCallback;
+import com.github.tvbox.osc.callback.TimeoutCallback;
 import com.github.tvbox.osc.data.AppDataManager;
 import com.github.tvbox.osc.server.ControlManager;
 import com.github.tvbox.osc.ui.activity.MainActivity;
@@ -58,6 +59,7 @@ public class App extends MultiDexApplication {
         LoadSir.beginBuilder()
                 .addCallback(new EmptyCallback())
                 .addCallback(new LoadingCallback())
+                .addCallback(new TimeoutCallback())
                 .commit();
         AutoSizeConfig.getInstance()
                 .setExcludeFontScale(true)
@@ -91,6 +93,7 @@ public class App extends MultiDexApplication {
         putDefault(HawkConfig.DOH_URL, 0);                   //安全DNS: 0=关闭, 1=腾讯, 2=阿里, 3=360, 4=Google, 5=AdGuard, 6=Quad9
         putDefault(HawkConfig.PLAY_SCALE, 0);                //画面缩放: 0=默认, 1=16:9, 2=4:3, 3=填充, 4=原始, 5=裁剪
         putDefault(HawkConfig.HISTORY_NUM, 2);                //历史记录数量: 0=30, 1=50, 2=70
+        putDefault(HawkConfig.LIVE_URL, "https://raw.githubusercontent.com/Guovin/iptv-api/gd/output/ipv4/result.m3u");
         putDefaultApi();
     }
 

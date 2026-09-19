@@ -17,6 +17,7 @@ import com.chad.library.adapter.base.BaseQuickAdapter
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.base.BaseActivity
 import com.github.tvbox.osc.base.MainTabHost
+import com.github.tvbox.osc.ui.activity.MainActivity
 import com.github.tvbox.osc.bean.Source
 import com.github.tvbox.osc.bean.Subscription
 import com.github.tvbox.osc.databinding.FragmentSubscriptionBinding
@@ -100,6 +101,9 @@ class SubFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: android.os.Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        // 订阅 Tab 是 MainActivity ViewPager 内的 Fragment,TitleBar 默认的 leftIcon(返回箭头)
+        // 点过去只会触发 Activity.finish(),把整个 App 退出栈 —— 没用还误导用户。直接隐藏。
+        binding.titleBar.leftView.visibility = View.GONE
         binding.rv.adapter = mSubscriptionAdapter
         mSubscriptions.forEach(Consumer { item: Subscription ->
             if (item.isChecked) {
@@ -500,8 +504,17 @@ class SubFragment : Fragment() {
 
     override fun onPause() {
         super.onPause()
+        // 原 SubscriptionActivity 在 finish() 里判断 mBeforeUrl != mSelectedUrl,
+        // 源变了就 startActivity(CLEAR_TASK) 重启 App;改成 Fragment 后这段没了,
+        // 变成只能等"首页被 ViewPager 销毁重建"才顺带重新加载 —— 太不可靠。
+        // 这里恢复显式判断,切换了源就通知 MainActivity 让各页重载。
+        val switched = mSelectedUrl.isNotEmpty() && mBeforeUrl != mSelectedUrl
         Hawk.put(HawkConfig.API_URL, mSelectedUrl)
         Hawk.put<List<Subscription>?>(HawkConfig.SUBSCRIPTIONS, mSubscriptions)
+        if (switched) {
+            mBeforeUrl = mSelectedUrl
+            (activity as? MainActivity)?.onSubscriptionSourceChanged()
+        }
     }
 
     override fun onDestroyView() {

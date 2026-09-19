@@ -196,6 +196,8 @@ public class VideoView<P extends AbstractPlayer> extends FrameLayout
      * @return 是否成功开始播放
      */
     protected boolean startPlay() {
+        Log.d("WATV_PLAY", "VideoView.startPlay state=" + mCurrentPlayState
+                + " mVideoView@" + System.identityHashCode(this));
         //如果要显示移动网络提示则不继续播放
         if (showNetWarning()) {
             //中止播放

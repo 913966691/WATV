@@ -6,6 +6,7 @@ import com.google.gson.JsonArray
 import okhttp3.*
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import android.util.Log
 
 /**
  * LLM客户端 - OpenAI兼容接口
@@ -45,6 +46,9 @@ class LlmClient {
             val requestBody = buildRequestBody(messages, tools)
             val apiUrl = LlmConfig.getApiUrl()
             val apiKey = LlmConfig.getApiKey()
+            val modelId = LlmConfig.getModelId()
+
+            Log.d("WATV_AI", "发起请求: url=$apiUrl model=$modelId keyMasked=${maskKey(apiKey)} bodyLen=${requestBody.length}")
             
             val request = Request.Builder()
                 .url(apiUrl)
@@ -55,33 +59,40 @@ class LlmClient {
             
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
+                    Log.e("WATV_AI", "onFailure: ${e.javaClass.simpleName} ${e.message}", e)
                     callback.onError("请求失败: ${e.message}")
                 }
                 
                 override fun onResponse(call: Call, response: Response) {
                     response.use { resp ->
+                        Log.d("WATV_AI", "onResponse: code=${resp.code()} success=${resp.isSuccessful}")
                         if (!resp.isSuccessful) {
                             val errorBody = resp.body()?.string() ?: "未知错误"
+                            Log.e("WATV_AI", "API错误体: $errorBody")
                             callback.onError("API错误(${resp.code()}): $errorBody")
                             return
                         }
                         
                         val responseBody = resp.body()?.string()
                         if (responseBody.isNullOrBlank()) {
+                            Log.e("WATV_AI", "响应体为空")
                             callback.onError("响应为空")
                             return
                         }
                         
                         try {
                             val result = parseResponse(responseBody)
+                            Log.d("WATV_AI", "解析成功: hasToolCalls=${result.hasToolCalls()} contentLen=${(result.content?.length ?: 0)}")
                             callback.onSuccess(result)
                         } catch (e: Exception) {
+                            Log.e("WATV_AI", "解析响应失败: ${e.message}", e)
                             callback.onError("解析响应失败: ${e.message}")
                         }
                     }
                 }
             })
         } catch (e: Exception) {
+            Log.e("WATV_AI", "请求异常(同步): ${e.message}", e)
             callback.onError("请求异常: ${e.message}")
         }
     }
@@ -119,7 +130,7 @@ class LlmClient {
                     tcObj.addProperty("type", "function")
                     val funcObj = JsonObject()
                     funcObj.addProperty("name", tc.name)
-                    funcObj.addProperty("arguments", tc.arguments.toString())
+                    funcObj.addProperty("arguments", gson.toJson(tc.arguments))
                     tcObj.add("function", funcObj)
                     toolCallsArray.add(tcObj)
                 }
@@ -148,6 +159,13 @@ class LlmClient {
         }
         
         return gson.toJson(json)
+    }
+    
+    /**
+     * 日志中脱敏 API Key：仅保留前 4 位与后 4 位，中间以 * 代替
+     */
+    private fun maskKey(key: String): String {
+        return if (key.length <= 8) "****" else "${key.take(4)}****${key.takeLast(4)}"
     }
     
     /**

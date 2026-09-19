@@ -41,14 +41,21 @@
     <string-array name="api">
         <item>http://www.饭太硬.cc/tv</item>
         <item>http://tvbox.xn--4kq62z5rby2qupq9ub.top/</item>
-        <item>assets://subscriptions/r18.json</item>
-        <item>assets://subscriptions/18cn.json</item>
+        <item>http://肥猫.net</item>
+        <item>https://www.yingm.cc/dm/dm.json</item>
+        <item>http://home.jundie.top:81/top98.json</item>
+        <item>http://fish.y456y.com</item>
     </string-array>
 
     <string-array name="api_name">
         <item>饭太硬（在线）</item>
         <item>王二小（在线）</item>
-        <item>R18（内置）</item>
-        <item>18cn（内置）</item>
+        <item>肥猫（在线）</item>
+        <item>动漫城（在线）</item>
+        <item>俊佬（在线）</item>
+        <item>摸鱼儿（在线）</item>
     </string-array>
+
+    <string name="splash_skip">跳过 %1$d</string>
+
 </resources>

@@ -10,9 +10,9 @@
     反射改私有字段(activeItemMaxWidth/inactiveItemMaxWidth)在不同 Android 版本/Material 版本
     上行为不一致,不可靠。
 
-    自绘方案用 LinearLayout + 4 个等宽(weight=1)子项,weight 机制保证:
-      - 每个 tab 宽度严格 = 容器宽 / 4
-      - 4 个 tab 必定铺满容器宽度,左右无留白、边距对称
+    自绘方案用 LinearLayout + 5 个等宽(weight=1)子项,weight 机制保证:
+      - 每个 tab 宽度严格 = 容器宽 / 5
+      - 5 个 tab 必定铺满容器宽度,左右无留白、边距对称
     完全规避 Material 的测宽逻辑。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -94,7 +94,33 @@
                 android:textSize="11sp" />
         </LinearLayout>
 
-        <!-- Tab 3: 订阅 -->
+        <!-- Tab 3: AI助手 -->
+        <LinearLayout
+            android:id="@+id/tab_ai"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:selectableItemBackgroundBorderless"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:id="@+id/iv_ai"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:contentDescription="AI助手"
+                android:src="@drawable/ic_ai_assistant" />
+
+            <TextView
+                android:id="@+id/tv_ai"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="AI助手"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- Tab 4: 订阅 -->
         <LinearLayout
             android:id="@+id/tab_subscribe"
             android:layout_width="0dp"
@@ -120,7 +146,7 @@
                 android:textSize="11sp" />
         </LinearLayout>
 
-        <!-- Tab 4: 我的 -->
+        <!-- Tab 5: 我的 -->
         <LinearLayout
             android:id="@+id/tab_my"
             android:layout_width="0dp"

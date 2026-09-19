@@ -113,14 +113,31 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
     private SourceViewModel sourceViewModel;
     private Movie.Video mVideo;
     private VodInfo vodInfo;
+    // AI 助手自动播放意图参数
+    private boolean autoPlay = false;
+    private int aiPlayIndex = -1;     // -1=续播/history, -2=最新, >=0=指定集(0基)
+    private String aiPlayFlag = null;
     public SeriesFlagAdapter seriesFlagAdapter;
     public SeriesAdapter seriesAdapter;
     public String vodId;
     public String sourceKey;
+    // 实际请求 detail 用的 id:fallback 后会被改写成 "?ac=detail&ids=..." 前缀形式,读历史/写历史都用它
+    public String effectiveVodId;
+    // TeaOS/B站采集等源要求 detail 接口的 vodId 带 "?ac=detail&ids=" 前缀,纯数字 id 会返回空对象
+    // {"list":[{}],"parse":0,"jx":0},本标志保证对同一 Activity 最多自动重试一次
+    private boolean hasTriedDetailFallback = false;
+    // 从入口(首页上次看到/历史/收藏)带进来的片名,用于"当前订阅已找不到该源"时提示用户并去搜索
+    private String externalVodName = "";
+    // 避免重复弹"源已失效"提示
+    private boolean hasPromptedSourceMissing = false;
     private View seriesFlagFocus = null;
     private boolean isReverse;
     private String preFlag = "";
     private HashMap<String, String> mCheckSources = null;
+    // 记住每条线路(playFlag)上次选中的 playIndex,切线路时不重置为 0;
+    // 切到没选过的新线路时,selected 全清、playIndex 置 -1,避免"奇怪地默认选中第1集";
+    // 切回之前选过的线路时,恢复到当时的 playIndex,实现"切回原线路选中当时播放的那一集"。
+    private final HashMap<String, Integer> flagPlayIndexMap = new HashMap<>();
     BatteryReceiver mBatteryReceiver = new BatteryReceiver();
     //改为view模式无法自动响应返回键操作,onBackPress时手动dismiss
     private BasePopupView mAllSeriesRightDialog;
@@ -204,6 +221,11 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         }
 
         findViewById(R.id.ll_title).setOnClickListener(view -> {
+            // 详情还没回来(vodInfo 为 null)就点标题会炸 VideoDetailDialog,先兜住
+            if (vodInfo == null) {
+                ToastUtils.showShort("详情尚未加载完成");
+                return;
+            }
             new XPopup.Builder(this)
                     .isViewMode(true)
                     .hasNavigationBar(false)
@@ -227,6 +249,11 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         mBinding.tvCollect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                // 详情没加载完时 vodInfo 为 null,收藏会写进一条空记录
+                if (vodInfo == null || TextUtils.isEmpty(vodInfo.id)) {
+                    ToastUtils.showShort("详情尚未加载完成");
+                    return;
+                }
                 String text = mBinding.tvCollect.getText().toString();
                 if ("加入收藏".equals(text)) {
                     RoomDataManger.insertVodCollect(sourceKey, vodInfo);
@@ -257,7 +284,8 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         });
 
         mBinding.tvSite.setOnClickListener(view -> {
-            startQuickSearch();
+            if (!startQuickSearch())
+                return;
             QuickSearchDialog quickSearchDialog = new QuickSearchDialog(DetailActivity.this);
             EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_QUICK_SEARCH, quickSearchData));
             EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_QUICK_SEARCH_WORD, quickSearchWord));
@@ -283,10 +311,6 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
                     }
                 }
             });
-        });
-        mBinding.tvChangeLine.setOnClickListener(v -> {
-            FastClickCheckUtil.check(v);
-            quickLineChange();
         });
         setLoadSir(mBinding.llLayout);
     }
@@ -320,11 +344,17 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
      * 排序(倒序)
      */
     public void sortSeries() {
-        if (vodInfo != null && vodInfo.seriesMap.size() > 0) {
+        // 详情未回来 / 源没给播放列表时 seriesMap 可能为 null,直接 size() 会 NPE
+        if (vodInfo != null && vodInfo.seriesMap != null && vodInfo.seriesMap.size() > 0) {
+            List<VodInfo.VodSeries> curList = vodInfo.seriesMap.get(vodInfo.playFlag);
+            if (curList == null || curList.isEmpty()) {
+                ToastUtils.showShort("资源异常,请稍后重试");
+                return;
+            }
             vodInfo.reverseSort = !vodInfo.reverseSort;
             isReverse = !isReverse;
             vodInfo.reverse();
-            vodInfo.playIndex = (vodInfo.seriesMap.get(vodInfo.playFlag).size() - 1) - vodInfo.playIndex;
+            vodInfo.playIndex = (curList.size() - 1) - vodInfo.playIndex;
 //                    insertVod(sourceKey, vodInfo);
 
             seriesAdapter.notifyDataSetChanged();
@@ -357,6 +387,11 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         //新选中的flag
         String newFlag = seriesFlagAdapter.getData().get(position).name;
         if (vodInfo != null && !vodInfo.playFlag.equals(newFlag)) {
+            // 1. 切走前,把当前 (playFlag, playIndex) 记到 map,
+            //    后面切回这条线路时才能恢复到"当时播放的那一集"
+            if (!TextUtils.isEmpty(vodInfo.playFlag) && vodInfo.playIndex >= 0) {
+                flagPlayIndexMap.put(vodInfo.playFlag, vodInfo.playIndex);
+            }
             for (int i = 0; i < vodInfo.seriesFlags.size(); i++) {//遍历flag集合
                 VodInfo.VodSeriesFlag flag = vodInfo.seriesFlags.get(i);
                 if (flag.name.equals(vodInfo.playFlag)) {//取消当前播放的选中状态
@@ -368,21 +403,42 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
             //新选中的flag
             VodInfo.VodSeriesFlag flag = vodInfo.seriesFlags.get(position);
             flag.selected = true;
-            //清除上一个线路集数的选中状态
+            //清除上一个线路集数的选中状态。
+            // 【修复回归】之前漏判 playIndex=-1 的情况:savedIdx==null 分支会把 playIndex 置为 -1,
+            // 再次切线路时这里如果用 ">" 检查,1>-1 会骗过去,ArrayList.get(-1) 直接 IOOB 崩溃。
             List<VodInfo.VodSeries> currentSeriesList = vodInfo.seriesMap.get(vodInfo.playFlag);
-            if (currentSeriesList.size() > vodInfo.playIndex) {//有效集数
+            if (currentSeriesList != null && vodInfo.playIndex >= 0 && vodInfo.playIndex < currentSeriesList.size()) {
                 currentSeriesList.get(vodInfo.playIndex).selected = false;
             }
             vodInfo.playFlag = newFlag;
             seriesFlagAdapter.notifyItemChanged(position);
+            // 2. 恢复新 flag 之前选过的 playIndex(若有);若没有记忆,保持当前 playIndex 不变
+            //    (refreshList 会兜底越界)
+            Integer savedIdx = flagPlayIndexMap.get(newFlag);
+            if (savedIdx != null && savedIdx >= 0) {
+                vodInfo.playIndex = savedIdx;
+            }
             refreshList();
+            // 3. 新线路之前从没选过:refreshList 会按 playIndex 默认选中一项,这对"刚切过来的用户"很奇怪
+            //    —— 不如什么都不选,等用户主动点。playIndex 置 -1,避免后面 jumpToPlay / insertVod 误用旧值。
+            //    注意:map 里只存 playIndex>=0 的有效集数,绝不放 -1;这样 savedIdx=null 才能准确表达"从未选过"。
+            if (savedIdx == null) {
+                List<VodInfo.VodSeries> newList = vodInfo.seriesMap.get(newFlag);
+                if (newList != null) {
+                    for (VodInfo.VodSeries s : newList) s.selected = false;
+                    seriesAdapter.notifyDataSetChanged();
+                }
+                vodInfo.playIndex = -1;
+            }
         }
     }
 
     private void chooseSeries(int position, boolean reloadWithChangeLine) {
-        if (vodInfo != null && vodInfo.seriesMap.get(vodInfo.playFlag).size() > 0) {
+        List<VodInfo.VodSeries> curList = getCurrentSeriesList();
+        // 防御:position 可能为 -1(新线路从未选过)或越界,此时不应选集/播放
+        if (vodInfo != null && curList != null && position >= 0 && position < curList.size()) {
             boolean reload = false;
-            for (int j = 0; j < vodInfo.seriesMap.get(vodInfo.playFlag).size(); j++) {
+            for (int j = 0; j < curList.size(); j++) {
                 seriesAdapter.getData().get(j).selected = false;
                 seriesAdapter.notifyItemChanged(j);
             }
@@ -409,14 +465,41 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         }
     }
 
-    private void initCheckedSourcesForSearch() {
-        mCheckSources = SearchHelper.getSourcesForSearch();
+    /**
+     * AI 助手自动播放时，根据 aiPlayIndex 设置播放集数并同步高亮。
+     * aiPlayIndex: -1=续播(保持 history 值) / -2=最新一集 / >=0=指定集(0基)
+     */
+    private void applyAiPlayIndex() {
+        if (vodInfo == null || seriesAdapter == null) return;
+        int size = seriesAdapter.getData().size();
+        if (size == 0) return;
+        int idx;
+        if (aiPlayIndex == -2) {
+            idx = size - 1;
+        } else if (aiPlayIndex >= 0) {
+            idx = Math.min(aiPlayIndex, size - 1);
+        } else {
+            return; // -1 续播：沿用 history 已设置的 playIndex
+        }
+        vodInfo.playIndex = idx;
+        for (int j = 0; j < size; j++) {
+            seriesAdapter.getData().get(j).selected = false;
+        }
+        seriesAdapter.getData().get(idx).selected = true;
+        seriesAdapter.notifyDataSetChanged();
+    }
+
+    private void initCheckedSourcesForSearch() {        mCheckSources = SearchHelper.getSourcesForSearch();
     }
 
     private List<Runnable> pauseRunnable = null;
 
     private void jumpToPlay() {
-        if (vodInfo != null && vodInfo.seriesMap.get(vodInfo.playFlag).size() > 0) {
+        List<VodInfo.VodSeries> curList = getCurrentSeriesList();
+        if (curList == null) {
+            return;
+        }
+        if (vodInfo != null) {
             preFlag = vodInfo.playFlag;
             //更新播放地址
             Bundle bundle = new Bundle();
@@ -455,23 +538,28 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
 
     @SuppressLint("NotifyDataSetChanged")
     void refreshList() {
-        int seriesSize = vodInfo.seriesMap.get(vodInfo.playFlag).size();
-        if (seriesSize > 0 && seriesSize <= vodInfo.playIndex) {//当前集数大于新选线路的总集数,设置为最后一集
+        List<VodInfo.VodSeries> curList = getCurrentSeriesList();
+        if (vodInfo == null || curList == null) {
+            return;
+        }
+        int seriesSize = curList.size();
+        // playIndex=-1 表示"切到了从未选过的新线路、不要默认选任何一集",这种情况不要越界改
+        // playIndex,后面的 canSelect 也要避开。同样兜底 playIndex>=size 的越界场景(切到集数更少的线路)。
+        if (seriesSize > 0 && vodInfo.playIndex >= 0 && seriesSize <= vodInfo.playIndex) {
             vodInfo.playIndex = seriesSize - 1;
         }
 
-        if (vodInfo.seriesMap.get(vodInfo.playFlag) != null) {
-            boolean canSelect = true;
-            for (int j = 0; j < vodInfo.seriesMap.get(vodInfo.playFlag).size(); j++) {
-                if (vodInfo.seriesMap.get(vodInfo.playFlag).get(j).selected) {
-                    canSelect = false;
-                    break;
-                }
+        boolean canSelect = true;
+        for (int j = 0; j < seriesSize; j++) {
+            if (curList.get(j).selected) {
+                canSelect = false;
+                break;
             }
-            if (canSelect)
-                vodInfo.seriesMap.get(vodInfo.playFlag).get(vodInfo.playIndex).selected = true;
         }
-        seriesAdapter.setNewData(vodInfo.seriesMap.get(vodInfo.playFlag));
+        if (canSelect && vodInfo.playIndex >= 0) {
+            curList.get(vodInfo.playIndex).selected = true;
+        }
+        seriesAdapter.setNewData(curList);
 
     }
 
@@ -480,6 +568,9 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         sourceViewModel.detailResult.observe(this, new Observer<AbsXml>() {
             @Override
             public void onChanged(AbsXml absXml) {
+                // 诊断日志:便于定位"源存在但 detail 返回空"的真实原因
+                int videoSize = (absXml != null && absXml.movie != null && absXml.movie.videoList != null) ? absXml.movie.videoList.size() : -1;
+                android.util.Log.d("DetailDiag", "[observer] sourceKey=" + sourceKey + " vodId=" + vodId + " videoListSize=" + videoSize);
                 if (absXml != null && absXml.movie != null && absXml.movie.videoList != null && absXml.movie.videoList.size() > 0) {
                     showSuccess();
                     mVideo = absXml.movie.videoList.get(0);
@@ -488,7 +579,9 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
                     vodInfo.sourceKey = mVideo.sourceKey;
 
                     mBinding.tvName.setText(TextUtils.isEmpty(mVideo.name) ? "暂无信息" : mVideo.name);
-                    String srcName = ApiConfig.get().getSource(mVideo.sourceKey).getName();
+                    // 切换订阅后,历史记录里的 sourceKey 可能已不在当前订阅中,getSource 会返回 null
+                    SourceBean curSourceBean = ApiConfig.get().getSource(mVideo.sourceKey);
+                    String srcName = curSourceBean == null ? null : curSourceBean.getName();
                     mBinding.tvSite.setText("来源：" + (TextUtils.isEmpty(srcName) ? "未知" : srcName));
 
                     if (vodInfo.seriesMap != null && vodInfo.seriesMap.size() > 0) {//线路
@@ -496,7 +589,7 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
                         mBinding.mGridView.setVisibility(View.VISIBLE);
                         mBinding.mEmptyPlaylist.setVisibility(View.GONE);
 
-                        VodInfo vodInfoRecord = RoomDataManger.getVodInfo(sourceKey, vodId);
+                        VodInfo vodInfoRecord = lookupVodRecord();
                         // 读取历史记录
                         if (vodInfoRecord != null) {
                             vodInfo.playIndex = Math.max(vodInfoRecord.playIndex, 0);
@@ -517,6 +610,11 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
                         if (vodInfo.playFlag == null || !vodInfo.seriesMap.containsKey(vodInfo.playFlag))
                             vodInfo.playFlag = (String) vodInfo.seriesMap.keySet().toArray()[0];
 
+                        // AI 助手指定线路：覆盖默认线路并让上方循环高亮
+                        if (aiPlayFlag != null && vodInfo.seriesMap.containsKey(aiPlayFlag)) {
+                            vodInfo.playFlag = aiPlayFlag;
+                        }
+
                         int flagScrollTo = 0;
                         for (int j = 0; j < vodInfo.seriesFlags.size(); j++) {
                             VodInfo.VodSeriesFlag flag = vodInfo.seriesFlags.get(j);
@@ -532,20 +630,58 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
                         mBinding.mGridViewFlag.scrollToPosition(flagScrollTo);
 
                         refreshList();
-                        if (showPreview) {
+                        // AI 助手自动播放：根据意图设置集数后直接起播
+                        if (autoPlay) {
+                            applyAiPlayIndex();
+                        }
+                        if (autoPlay || showPreview) {
                             jumpToPlay();
                             mBinding.previewPlayer.setVisibility(View.VISIBLE);
                             toggleSubtitleTextSize();
                         }
                         // startQuickSearch();
-                    } else {//空布局
+                    } else {//空布局:源存在但 detail 里没有任何线路/集数
+                        // 兜底:TeaOS/B站采集等源对 detail 接口要求 vodId 带 "?ac=detail&ids=" 前缀,
+                        // 历史里若存了纯数字 id,spider 会返回空对象 {"list":[{}],"parse":0,"jx":0}。
+                        // 自动给 id 加上前缀再请求一次;成功后会用新 id 写历史,覆盖旧记录自愈。
+                        if (shouldTryDetailFallback(absXml)) {
+                            hasTriedDetailFallback = true;
+                            effectiveVodId = "?ac=detail&ids=" + vodId;
+                            android.util.Log.d("DetailDiag", "[fallback] retry with " + effectiveVodId);
+                            showLoading();
+                            sourceViewModel.getDetail(sourceKey, effectiveVodId);
+                            return;
+                        }
                         mBinding.mGridViewFlag.setVisibility(View.GONE);
                         mBinding.mGridView.setVisibility(View.GONE);
                         mBinding.mEmptyPlaylist.setVisibility(View.VISIBLE);
+                        SourceBean curSource = ApiConfig.get().getSource(sourceKey);
+                        String emptySrcName = curSource == null ? sourceKey : curSource.getName();
+                        // 注意:这里 sourceKey 在当前订阅里存在,但 detail 接口没返回可播放的线路/集数,
+                        // 不等于"没这个源",文案要明确区分开,避免用户误解。
+                        showSourceMissingPrompt("该视频暂无播放数据",
+                                "来源「" + emptySrcName + "」存在,但当前没有该视频的可播放数据。\n"
+                                        + "可能该视频 ID 在该源下已变更,或该视频已下架。",
+                                resolveSearchTitle(),
+                                () -> {
+                                    showLoading();
+                                    sourceViewModel.getDetail(sourceKey, effectiveVodId);
+                                });
                     }
                 } else {
                     showEmpty();
                     mBinding.previewPlayer.setVisibility(View.GONE);
+                    // 源存在但 detail 没返回数据:可能是订阅变更或视频下架
+                    SourceBean curSource = ApiConfig.get().getSource(sourceKey);
+                    String failSrcName = curSource == null ? sourceKey : curSource.getName();
+                    showSourceMissingPrompt("无法加载该视频",
+                            "来源「" + failSrcName + "」存在,但 detail 接口未返回该视频信息。\n"
+                                    + "可能接口暂时异常,或该视频在该源下已下架。",
+                            resolveSearchTitle(),
+                            () -> {
+                                showLoading();
+                                sourceViewModel.getDetail(sourceKey, effectiveVodId);
+                            });
                 }
             }
         });
@@ -562,6 +698,10 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         Intent intent = getIntent();
         if (intent != null && intent.getExtras() != null) {
             Bundle bundle = intent.getExtras();
+            autoPlay = bundle.getBoolean("autoPlay", false);
+            aiPlayIndex = bundle.getInt("playIndex", -1);
+            aiPlayFlag = bundle.getString("playFlag");
+            externalVodName = bundle.getString("vodName", "");
             loadDetail(bundle.getString("id", null), bundle.getString("sourceKey", ""));
         }
     }
@@ -569,9 +709,20 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
     private void loadDetail(String vid, String key) {
         if (vid != null) {
             vodId = vid;
+            effectiveVodId = vid;
+            hasTriedDetailFallback = false; // 重新进详情时允许再次尝试 fallback
             sourceKey = key;
+            hasPromptedSourceMissing = false; // 重新进详情时允许再次提示
+            // 切换订阅后,历史/收藏里的 sourceKey 可能已不在当前 ApiConfig 中
+            SourceBean sb = ApiConfig.get().getSource(sourceKey);
+            if (sb == null) {
+                showSourceMissingPrompt("无法加载该视频",
+                        "当前订阅中不存在来源「" + sourceKey + "」，\n该视频可能来自您之前使用的订阅。",
+                        resolveSearchTitle(), null);
+                return;
+            }
             showLoading();
-            sourceViewModel.getDetail(sourceKey, vodId);
+            sourceViewModel.getDetail(sourceKey, effectiveVodId);
             boolean isVodCollect = RoomDataManger.isVodCollect(sourceKey, vodId);
             if (isVodCollect) {
                 mBinding.tvCollect.setText("取消收藏");
@@ -581,13 +732,86 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         }
     }
 
+    /**
+     * 读历史用的 vodId。fallback 后 effectiveVodId 会被改写成带前缀的形式,但旧记录的 key
+     * 还是原始纯数字,因此新形式查不到时回退用 vodId(原始入口 id)查,保证 fallback 后
+     * 仍能恢复之前观看到的集数 / playIndex。
+     */
+    private VodInfo lookupVodRecord() {
+        String vid = effectiveVodId != null ? effectiveVodId : vodId;
+        VodInfo rec = RoomDataManger.getVodInfo(sourceKey, vid);
+        if (rec == null && effectiveVodId != null && !effectiveVodId.equals(vodId)) {
+            rec = RoomDataManger.getVodInfo(sourceKey, vodId);
+        }
+        return rec;
+    }
+
+    /**
+     * TeaOS/B站采集等源要求 detail 接口的 vodId 带 "?ac=detail&ids=" 前缀,纯数字 id 会
+     * 返回空对象 {"list":[{}],"parse":0,"jx":0}。仅在满足以下所有条件时才自动 fallback:
+     * 1) 还没尝试过 fallback(hasTriedDetailFallback=false)
+     * 2) 当前源是 spider(type=3)
+     * 3) vodId 是纯数字或单词(不含 ? /),即看起来像被 spider 归一化过的形式
+     * 4) 响应是 videoList 大小为 1 但内容全空的"空对象"形态(TeaOS 失败响应特征)
+     */
+    private boolean shouldTryDetailFallback(AbsXml data) {
+        if (hasTriedDetailFallback) return false;
+        SourceBean sb = ApiConfig.get().getSource(sourceKey);
+        if (sb == null || sb.getType() != 3) return false;
+        if (TextUtils.isEmpty(vodId) || vodId.contains("?") || vodId.contains("/")) return false;
+        if (data == null || data.movie == null || data.movie.videoList == null) return false;
+        if (data.movie.videoList.size() != 1) return false;
+        Movie.Video v = data.movie.videoList.get(0);
+        return v == null || v.id == null || v.name == null;
+    }
+
+    /**
+     * 尽量拿到可用于搜索的片名:详情返回的 name -> 入口带进来的 name -> 本地历史记录的 name。
+     */
+    private String resolveSearchTitle() {
+        if (mVideo != null && !TextUtils.isEmpty(mVideo.name)) return mVideo.name;
+        if (vodInfo != null && !TextUtils.isEmpty(vodInfo.name)) return vodInfo.name;
+        if (!TextUtils.isEmpty(externalVodName)) return externalVodName;
+        try {
+            VodInfo rec = lookupVodRecord();
+            if (rec != null && !TextUtils.isEmpty(rec.name)) return rec.name;
+        } catch (Throwable ignored) {
+        }
+        return "";
+    }
+
+    private void showSourceMissingPrompt(String title, String message, String searchTitle, Runnable retryAction) {
+        if (hasPromptedSourceMissing) return;
+        hasPromptedSourceMissing = true;
+        showEmpty();
+        AlertDialog.Builder builder = new AlertDialog.Builder(DetailActivity.this)
+                .setTitle(title)
+                .setMessage(message + "\n\n建议通过搜索其它源观看该影片。")
+                .setNegativeButton("知道了", null);
+        if (retryAction != null) {
+            builder.setNeutralButton("重试", (dialog, which) -> {
+                hasPromptedSourceMissing = false;
+                retryAction.run();
+            });
+        }
+        if (!TextUtils.isEmpty(searchTitle)) {
+            builder.setPositiveButton("去搜索", (dialog, which) -> {
+                Intent intent = new Intent(DetailActivity.this, FastSearchActivity.class);
+                intent.putExtra("title", searchTitle);
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                startActivity(intent);
+            });
+        }
+        builder.show();
+    }
+
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void refresh(RefreshEvent event) {
         if (event.type == RefreshEvent.TYPE_REFRESH) {
-            if (event.obj != null) {
+            if (event.obj != null && vodInfo != null && getCurrentSeriesList() != null) {
                 if (event.obj instanceof Integer) {
                     int index = (int) event.obj;
-                    for (int j = 0; j < vodInfo.seriesMap.get(vodInfo.playFlag).size(); j++) {
+                    for (int j = 0; j < getCurrentSeriesList().size(); j++) {
                         seriesAdapter.getData().get(j).selected = false;
                         seriesAdapter.notifyItemChanged(j);
                     }
@@ -607,6 +831,7 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         } else if (event.type == RefreshEvent.TYPE_QUICK_SEARCH_SELECT) {
             if (event.obj != null) {
                 Movie.Video video = (Movie.Video) event.obj;
+                externalVodName = video.name;
                 loadDetail(video.id, video.sourceKey);
             }
         } else if (event.type == RefreshEvent.TYPE_QUICK_SEARCH_WORD_CHANGE) {
@@ -630,20 +855,53 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
     private ExecutorService searchExecutorService = null;
 
     private void switchSearchWord(String word) {
+        if (TextUtils.isEmpty(word)) {
+            ToastUtils.showShort("搜索词为空");
+            return;
+        }
         OkGo.getInstance().cancelTag("quick_search");
         quickSearchData.clear();
         searchTitle = word;
         searchResult();
     }
 
-    private void startQuickSearch() {
+    /**
+     * 取可用的搜索片名。
+     * 场景:A 订阅下看过某片 -> 切到 B 订阅 -> 从"上次播放"进详情页,
+     * 此时详情可能还没回来 / 新订阅里该 id 不存在 / 源返回的 name 为空,
+     * 直接拿 mVideo.name 去做分词会 NPE 崩溃(SearchHelper.splitWords)。
+     */
+    private String resolveQuickSearchTitle() {
+        if (mVideo != null && !TextUtils.isEmpty(mVideo.name)) {
+            return mVideo.name;
+        }
+        if (vodInfo != null && !TextUtils.isEmpty(vodInfo.name)) {
+            return vodInfo.name;
+        }
+        try {
+            VodInfo record = lookupVodRecord();
+            if (record != null && !TextUtils.isEmpty(record.name)) {
+                return record.name;
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private boolean startQuickSearch() {
         initCheckedSourcesForSearch();
         if (hadQuickStart)
-            return;
+            return true;
+        // 无可用片名时不要继续,否则 splitWords / URLEncoder 都会 NPE
+        String title = resolveQuickSearchTitle();
+        if (TextUtils.isEmpty(title)) {
+            ToastUtils.showShort("暂无可搜索的影片名称");
+            return false;
+        }
         hadQuickStart = true;
         OkGo.getInstance().cancelTag("quick_search");
         quickSearchWord.clear();
-        searchTitle = mVideo.name;
+        searchTitle = title;
         quickSearchData.clear();
         quickSearchWord.addAll(SearchHelper.splitWords(searchTitle));
         // 分词
@@ -680,6 +938,7 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
                 });
 
         searchResult();
+        return true;
     }
 
     private void searchResult() {
@@ -741,7 +1000,7 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         } catch (Throwable th) {
             vodInfo.playNote = "";
         }
-        RoomDataManger.insertVodRecord(sourceKey, vodInfo);
+        RoomDataManger.insertVodRecord(sourceKey, vodInfo, effectiveVodId != null ? effectiveVodId : vodId);
         EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_HISTORY_REFRESH));
     }
 
@@ -1279,43 +1538,86 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
         EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_SUBTITLE_SIZE_CHANGE, subtitleTextSize));
     }
 
-    public void use1DMDownload() {
-        if (vodInfo != null && vodInfo.seriesMap.get(vodInfo.playFlag).size() > 0) {
-            VodInfo.VodSeries vod = vodInfo.seriesMap.get(vodInfo.playFlag).get(vodInfo.playIndex);
-            String url = TextUtils.isEmpty(playFragment.getFinalUrl()) ? vod.url : playFragment.getFinalUrl();
-            // 创建Intent对象，启动1DM App
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-            intent.setDataAndType(Uri.parse(url), "video/mp4");
-            intent.putExtra("title", vodInfo.name + " " + vod.name); // 传入文件保存名
-//            intent.setClassName("idm.internet.download.manager.plus", "idm.internet.download.manager.MainActivity");
-            intent.setClassName("idm.internet.download.manager.plus", "idm.internet.download.manager.Downloader");
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
-            // 检查1DM App是否已安装
-            PackageManager pm = getPackageManager();
-            List<ResolveInfo> activities = pm.queryIntentActivities(intent, 0);
-            boolean isIntentSafe = activities.size() > 0;
-
-            if (isIntentSafe) {
-                startActivity(intent); // 启动1DM App
-            } else {
-                // 如果1DM App未安装，提示用户安装1DM App
-                AlertDialog.Builder builder = new AlertDialog.Builder(this);
-                builder.setTitle("请先安装1DM+下载管理器");
-                builder.setMessage("为了下载视频，请先安装1DM+下载管理器。是否现在安装？");
-                builder.setPositiveButton("立即下载", new DialogInterface.OnClickListener() {
-
-                    public void onClick(DialogInterface dialog, int which) {
-                        // 跳转到下载链接
-                        Intent downloadIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://od.lk/d/MzRfMTg0NTcxMDdf/1DM _v15.6.apk"));
-                        startActivity(downloadIntent);
-                    }
-                });
-                builder.setNegativeButton("取消", null);
-                builder.show();
+    /**
+     * 取当前线路的集数列表(带多重兜底),拿不到返回 null。
+     */
+    private List<VodInfo.VodSeries> getCurrentSeriesList() {
+        if (vodInfo == null || vodInfo.seriesMap == null || vodInfo.seriesMap.isEmpty()) {
+            return null;
+        }
+        List<VodInfo.VodSeries> list = vodInfo.seriesMap.get(vodInfo.playFlag);
+        if (list == null || list.isEmpty()) {
+            for (List<VodInfo.VodSeries> l : vodInfo.seriesMap.values()) {
+                if (l != null && !l.isEmpty()) {
+                    list = l;
+                    break;
+                }
             }
-        } else {
+        }
+        return (list == null || list.isEmpty()) ? null : list;
+    }
+
+    /**
+     * 取当前选中的那一集。
+     * 防御点：详情未回来(vodInfo==null)、源没给播放列表(seriesMap==null)、
+     * 切订阅后历史里的 playFlag 不在新数据里(seriesMap.get(playFlag)==null)、playIndex 越界。
+     * 这几种情况之前都会 NPE(点下载/排序按钮必崩)。
+     */
+    private VodInfo.VodSeries getCurrentSeries() {
+        List<VodInfo.VodSeries> list = getCurrentSeriesList();
+        if (list == null) {
+            return null;
+        }
+        int idx = vodInfo.playIndex;
+        if (idx < 0 || idx >= list.size()) {
+            idx = 0;
+        }
+        return list.get(idx);
+    }
+
+    public void use1DMDownload() {
+        VodInfo.VodSeries vod = getCurrentSeries();
+        if (vod == null) {
             ToastUtils.showShort("资源异常,请稍后重试");
+            return;
+        }
+        String url = vod.url;
+        if (playFragment != null && !TextUtils.isEmpty(playFragment.getFinalUrl())) {
+            url = playFragment.getFinalUrl();
+        }
+        if (TextUtils.isEmpty(url)) {
+            ToastUtils.showShort("暂无可下载的地址");
+            return;
+        }
+        // 创建Intent对象，启动1DM App
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+        intent.setDataAndType(Uri.parse(url), "video/mp4");
+        intent.putExtra("title", (vodInfo.name == null ? "" : vodInfo.name) + " " + vod.name); // 传入文件保存名
+        intent.setClassName("idm.internet.download.manager.plus", "idm.internet.download.manager.Downloader");
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        // 检查1DM App是否已安装
+        PackageManager pm = getPackageManager();
+        List<ResolveInfo> activities = pm.queryIntentActivities(intent, 0);
+        boolean isIntentSafe = activities.size() > 0;
+
+        if (isIntentSafe) {
+            startActivity(intent); // 启动1DM App
+        } else {
+            // 如果1DM App未安装，提示用户安装1DM App
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle("请先安装1DM+下载管理器");
+            builder.setMessage("为了下载视频，请先安装1DM+下载管理器。是否现在安装？");
+            builder.setPositiveButton("立即下载", new DialogInterface.OnClickListener() {
+
+                public void onClick(DialogInterface dialog, int which) {
+                    // 跳转到下载链接
+                    Intent downloadIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://od.lk/d/MzRfMTg0NTcxMDdf/1DM _v15.6.apk"));
+                    startActivity(downloadIntent);
+                }
+            });
+            builder.setNegativeButton("取消", null);
+            builder.show();
         }
     }
 
@@ -1612,25 +1914,6 @@ public class DetailActivity extends BaseVbActivity<ActivityDetailBinding> {
 
     public String getCurrentVodUrl() {
         return playFragment == null ? "" : playFragment.getFinalUrl();
-    }
-
-    public void quickLineChange() {
-        List<VodInfo.VodSeriesFlag> flags = seriesFlagAdapter.getData();
-        if (flags.size() > 1) {
-            int currentIndex = 0;
-            for (int i = 0; i < flags.size(); i++) {
-                if (flags.get(i).selected) {
-                    currentIndex = i;
-                }
-            }
-            currentIndex += 1;
-            if (currentIndex >= flags.size()) {
-                currentIndex = 0;
-            }
-            mBinding.mGridViewFlag.smoothScrollToPosition(currentIndex);
-            chooseFlag(currentIndex);
-            mBinding.mGridView.postDelayed(() -> chooseSeries(vodInfo.playIndex, true), 300);
-        }
     }
 
     public void showParseRoot(boolean show, ParseAdapter adapter) {

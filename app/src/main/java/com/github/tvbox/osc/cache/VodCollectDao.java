@@ -5,6 +5,7 @@ import androidx.room.Delete;
 import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
+import androidx.room.Update;
 
 import java.util.List;
 
@@ -17,6 +18,9 @@ import java.util.List;
 public interface VodCollectDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     long insert(VodCollect record);
+
+    @Update
+    int update(VodCollect record);
 
     @Query("select * from vodCollect  order by updateTime desc")
     List<VodCollect> getAll();

@@ -28,7 +28,8 @@ abstract class BaseVbFragment<T : ViewBinding> : Fragment(), CustomAdapt {
     protected var mActivity: Activity? = null
 
     protected lateinit var mBinding: T
-    private var mLoadService: LoadService<*>? = null
+    @JvmField
+    protected var mLoadService: LoadService<*>? = null
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -80,7 +81,7 @@ abstract class BaseVbFragment<T : ViewBinding> : Fragment(), CustomAdapt {
     }
 
     protected abstract fun init()
-    protected fun setLoadSir(view: View?) {
+    protected open fun setLoadSir(view: View?) {
         if (mLoadService == null) {
             mLoadService = LoadSir.getDefault().register(view) { }
         }
@@ -99,6 +100,12 @@ abstract class BaseVbFragment<T : ViewBinding> : Fragment(), CustomAdapt {
     protected fun showEmpty() {
         if (null != mLoadService) {
             mLoadService!!.showCallback(EmptyCallback::class.java)
+        }
+    }
+
+    protected fun showCallback(cls: Class<out com.kingja.loadsir.callback.Callback>) {
+        if (null != mLoadService) {
+            mLoadService!!.showCallback(cls)
         }
     }
 

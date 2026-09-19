@@ -2,8 +2,6 @@ package com.github.tvbox.osc.cache;
 
 import android.text.TextUtils;
 
-import com.github.tvbox.osc.api.ApiConfig;
-import com.github.tvbox.osc.bean.SourceBean;
 import com.github.tvbox.osc.bean.VodInfo;
 import com.github.tvbox.osc.data.AppDataManager;
 import com.google.gson.ExclusionStrategy;
@@ -47,12 +45,35 @@ public class RoomDataManger {
     }
 
     public static void insertVodRecord(String sourceKey, VodInfo vodInfo) {
-        VodRecord record = AppDataManager.get().getVodRecordDao().getVodRecord(sourceKey, vodInfo.id);
+        insertVodRecord(sourceKey, vodInfo, null);
+    }
+
+    /**
+     * 写入观看历史。TeaOS/B站采集等源会把传入的原始 id (如 "?ac=detail&ids=24820") 归一化成
+     * 纯数字后再写进 vodInfo.id,这样从历史再点进去时,spider 看到纯数字 id 不知道怎么处理
+     * (内部 API 协议不匹配),直接返回空数据 {"list":[{}],"parse":0,"jx":0}。
+     * 因此新增 overrideVodId:DetailActivity 把自己收到的"入口原始 id"原封不动写进 record.vodId,
+     * 从历史再进入时 DetailActivity 拿到的 vodId 跟第一次进来时一致,spider 才能正常解析。
+     * 同时,如果同一视频历史上曾用业务 id(vodInfo.id)写过记录,而本次入口形式不同,
+     * 需要先把旧记录删掉,避免出现"同一部片子两条历史"。
+     */
+    public static void insertVodRecord(String sourceKey, VodInfo vodInfo, String overrideVodId) {
+        if (vodInfo == null) return;
+        String recordVodId = !TextUtils.isEmpty(overrideVodId) ? overrideVodId : vodInfo.id;
+        if (TextUtils.isEmpty(recordVodId)) return;
+        // id 形式变化去重:用业务 id 查旧记录,如果跟新的入口 id 不同,删掉避免重复
+        if (!TextUtils.isEmpty(vodInfo.id) && !vodInfo.id.equals(recordVodId)) {
+            VodRecord oldByBizId = AppDataManager.get().getVodRecordDao().getVodRecord(sourceKey, vodInfo.id);
+            if (oldByBizId != null) {
+                AppDataManager.get().getVodRecordDao().delete(oldByBizId);
+            }
+        }
+        VodRecord record = AppDataManager.get().getVodRecordDao().getVodRecord(sourceKey, recordVodId);
         if (record == null) {
             record = new VodRecord();
         }
         record.sourceKey = sourceKey;
-        record.vodId = vodInfo.id;
+        record.vodId = recordVodId;
         record.updateTime = System.currentTimeMillis();
         record.dataJson = getVodInfoGson().toJson(vodInfo);
         AppDataManager.get().getVodRecordDao().insert(record);
@@ -98,9 +119,12 @@ public class RoomDataManger {
                         info = getVodInfoGson().fromJson(record.dataJson, new TypeToken<VodInfo>() {
                         }.getType());
                         info.sourceKey = record.sourceKey;
-                        SourceBean sourceBean = ApiConfig.get().getSource(info.sourceKey);
-                        if (sourceBean == null || info.name == null)
-                            info = null;
+                        info.watchTime = record.updateTime;
+                        // 观看历史与当前订阅无关:即便 sourceKey 已不在当前 ApiConfig 里也必须保留展示,
+                        // 否则用户切换订阅后旧记录会"消失"(点进去时再由 DetailActivity 提示原因)。
+                        if (info.name == null || info.name.trim().isEmpty()) {
+                            info.name = "未知影片";
+                        }
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -126,6 +150,10 @@ public class RoomDataManger {
         AppDataManager.get().getVodCollectDao().insert(record);
     }
 
+    public static VodCollect getVodCollect(String sourceKey, String vodId) {
+        return AppDataManager.get().getVodCollectDao().getVodCollect(sourceKey, vodId);
+    }
+
     public static void deleteVodCollect(int id) {
         AppDataManager.get().getVodCollectDao().delete(id);
     }
@@ -144,6 +172,37 @@ public class RoomDataManger {
 
     public static List<VodCollect> getAllVodCollect() {
         return AppDataManager.get().getVodCollectDao().getAll();
+    }
+
+    /**
+     * 收藏页横版卡片数据:每条收藏联动观看记录(拿到"看到第X集" playNote 与"更新至X集" note),
+     * 返回 VodInfo 列表(仅填充展示字段),按收藏时间倒序。
+     * 收藏了但没看过(历史里没有)的返回最小化 VodInfo,playNote 为空,展示层显示"未观看"。
+     */
+    public static List<VodInfo> getCollectDisplayList() {
+        List<VodCollect> collects = getAllVodCollect();
+        List<VodInfo> list = new ArrayList<>();
+        if (collects == null || collects.isEmpty()) {
+            return list;
+        }
+        for (VodCollect c : collects) {
+            if (c == null || c.vodId == null) continue;
+            VodInfo info = null;
+            try {
+                info = getVodInfo(c.sourceKey, c.vodId);
+            } catch (Throwable ignored) {
+            }
+            if (info == null) {
+                info = new VodInfo();
+                info.id = c.vodId;
+                info.name = c.name;
+                info.pic = c.pic;
+                info.sourceKey = c.sourceKey;
+            }
+            info.watchTime = c.updateTime;
+            list.add(info);
+        }
+        return list;
     }
 
     /**

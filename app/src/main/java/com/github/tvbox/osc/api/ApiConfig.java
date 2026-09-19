@@ -126,6 +126,7 @@ public class ApiConfig {
     }
 
     public void loadConfig(boolean useCache, LoadConfigCallback callback, Activity activity) {
+        configLoaded = false; // 开始一次新配置加载,先置否;parseJson 成功后再置真
         String apiUrl = Hawk.get(HawkConfig.API_URL, "");
         if (apiUrl.isEmpty()) {
             callback.error("-1");
@@ -612,11 +613,18 @@ public class ApiConfig {
                     liveURL_final = liveURL;
                 }
                 if (!StringUtils.isBlank(liveURL_final)) {
-                    liveURL_final = Base64.encodeToString(liveURL_final.getBytes("UTF-8"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
-                    liveURL_final = "http://127.0.0.1:9978/proxy?do=live&type=txt&ext=" + liveURL_final;
-                    LiveChannelGroup liveChannelGroup = new LiveChannelGroup();
-                    liveChannelGroup.setGroupName(liveURL_final);
-                    liveChannelGroupList.add(liveChannelGroup);
+                    // LIVE_URL 支持用逗号(或换行)分隔多个直播源,逐个生成 LiveChannelGroup,
+                    // 这样默认就可以一次给两个/多个 URL,而不需要在 Hawk 里硬塞 JSON 数组。
+                    String[] liveUrls = liveURL_final.split("[,\\n]+");
+                    for (String oneUrlRaw : liveUrls) {
+                        String oneUrl = oneUrlRaw.trim();
+                        if (oneUrl.isEmpty()) continue;
+                        String proxied = Base64.encodeToString(oneUrl.getBytes("UTF-8"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
+                        proxied = "http://127.0.0.1:9978/proxy?do=live&type=txt&ext=" + proxied;
+                        LiveChannelGroup liveChannelGroup = new LiveChannelGroup();
+                        liveChannelGroup.setGroupName(proxied);
+                        liveChannelGroupList.add(liveChannelGroup);
+                    }
                 }
             }
 
@@ -689,6 +697,7 @@ public class ApiConfig {
                 }
             }
         }
+        configLoaded = true; // 配置已成功解析(直播分组已就绪),供直播页判空时使用
     }
 
     private boolean isUnsupportedLocalLiveProxy(String url) {
@@ -833,6 +842,14 @@ public class ApiConfig {
 
     public SourceBean getHomeSourceBean() {
         return mHomeSource == null ? emptyHome : mHomeSource;
+    }
+
+    /** 标记"源配置是否已成功加载过一次"。直播页据此区分 getChannelGroupList() 为空是
+     *  "配置还在异步加载中"还是"真的没有直播频道",避免冷启动/切源时误判"暂无直播频道"。 */
+    private boolean configLoaded = false;
+
+    public boolean isConfigLoaded() {
+        return configLoaded;
     }
 
     public List<LiveChannelGroup> getChannelGroupList() {

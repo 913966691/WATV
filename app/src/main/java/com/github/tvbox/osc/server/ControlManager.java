@@ -51,10 +51,18 @@ public class ControlManager {
     }
 
     public void startServer() {
-        if (mServer != null) {
+        // 仅在代理确实已在运行时跳过;若已被 stop 过(对象还在但未启动),必须重建
+        if (mServer != null && mServer.isStarted()) {
             return;
         }
         do {
+            // 清理可能残留(已停止)的旧实例后再建新实例
+            if (mServer != null) {
+                try {
+                    mServer.stop();
+                } catch (Exception ignored) {
+                }
+            }
             mServer = new RemoteServer(RemoteServer.serverPort, mContext);
             mServer.setDataReceiver(new DataReceiver() {
                 @Override
@@ -85,15 +93,21 @@ public class ControlManager {
                 mServer.start();
                 break;
             } catch (IOException ex) {
+                // 端口被占用(罕见):递增后重试,避免代理彻底起不来
                 RemoteServer.serverPort++;
-                mServer.stop();
             }
         } while (RemoteServer.serverPort < 9999);
     }
 
     public void stopServer() {
-        if (mServer != null && mServer.isStarting()) {
-            mServer.stop();
+        if (mServer != null) {
+            try {
+                mServer.stop();
+            } catch (Exception ignored) {
+            }
         }
+        // 关键:停掉后必须把引用置空,否则下一次 startServer 会因 mServer!=null 而误判"已在运行"、
+        // 导致代理永远无法重启(直播→点播失败、本地代理连接 2001 的根因)
+        mServer = null;
     }
 }

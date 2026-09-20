@@ -1628,6 +1628,9 @@ public class PlayFragment extends BaseLazyFragment {
         if (mVideoView != null) mVideoView.release();
         String subtitleCacheKey = mVodInfo.sourceKey + "-" + mVodInfo.id + "-" + mVodInfo.playFlag + "-" + mVodInfo.playIndex + "-" + vs.name + "-subt";
         String progressKey = mVodInfo.sourceKey + mVodInfo.id + mVodInfo.playFlag + mVodInfo.playIndex + vs.name;
+        // 同步给字段 this.progressKey:startPlayUrl 里 setProgressKey/getSavedProgress 用的是字段,
+        // 否则字段一直是 null,所有集进度都存到同一个 null key 下,切集就会读出上一集的进度
+        this.progressKey = progressKey;
         //重新播放清除现有进度
         if (reset) {
             CacheManager.delete(MD5.string2MD5(progressKey), 0);
